@@ -1,0 +1,10 @@
+node_modules/
+.env
+temporary screenshots/
+uploads/
+backups/
+*.log
+
+# Real pupil roster — keep personal data out of version control.
+# A safe anonymised stand-in lives in samples/.
+student_data.xlsx

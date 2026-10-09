@@ -1,0 +1,81 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Administration</div>
+    <h1>Teachers</h1>
+    <p class="lede">
+      All teachers share one login; after signing in they pick their name from this list.
+      Inactive teachers disappear from that dropdown but keep their mark history.
+    </p>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <h3>Add a teacher</h3>
+  <form method="post" action="/admin/teachers" class="inline-form mt-4">
+    <label class="field">
+      <span>Full name</span>
+      <input type="text" name="name" placeholder="e.g. Mrs. Lakshmi Nair" required>
+    </label>
+    <label class="field narrow">
+      <span>Staff code</span>
+      <input type="text" name="employee_code" placeholder="optional">
+    </label>
+    <label class="field">
+      <span>Email</span>
+      <input type="email" name="email" placeholder="optional">
+    </label>
+    <label class="field narrow">
+      <span>Phone</span>
+      <input type="text" name="phone" placeholder="optional">
+    </label>
+    <button class="btn btn-primary" type="submit">Add teacher</button>
+  </form>
+</div>
+
+<div class="card card-flush">
+  <div class="card-head">
+    <h3 style="margin:0"><%= teachers.filter(function (t) { return t.is_active; }).length %> active
+      of <%= teachers.length %></h3>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Name</th><th style="width:7rem">Code</th><th style="width:14rem">Email</th>
+          <th style="width:9rem">Phone</th><th class="mid" style="width:5rem">Active</th>
+          <th class="mid" style="width:7rem">Submissions</th><th>Last entry</th><th style="width:11rem"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% teachers.forEach(function (t) { %>
+          <tr<%= t.is_active ? '' : ' style="color:var(--ink-faint)"' %>>
+            <form method="post" action="/admin/teachers/<%= t.id %>" id="tch-<%= t.id %>"></form>
+            <td><input type="text" name="name" value="<%= t.name %>" form="tch-<%= t.id %>"></td>
+            <td><input type="text" name="employee_code" value="<%= t.employee_code || '' %>" form="tch-<%= t.id %>"></td>
+            <td><input type="email" name="email" value="<%= t.email || '' %>" form="tch-<%= t.id %>"></td>
+            <td><input type="text" name="phone" value="<%= t.phone || '' %>" form="tch-<%= t.id %>"></td>
+            <td class="mid">
+              <input type="checkbox" name="is_active" <%= t.is_active ? 'checked' : '' %>
+                     form="tch-<%= t.id %>" style="width:auto" aria-label="Active">
+            </td>
+            <td class="mid tnum">
+              <% if (t.submission_count) { %>
+                <a href="/admin/marks?teacher=<%= t.id %>"><%= t.submission_count %></a>
+              <% } else { %>0<% } %>
+            </td>
+            <td class="text-xs muted"><%= t.last_submission ? fmtDateTime(t.last_submission) : '—' %></td>
+            <td class="nowrap" style="text-align:right">
+              <button class="btn btn-ghost btn-sm" type="submit" form="tch-<%= t.id %>">Save</button>
+              <% if (!t.submission_count) { %>
+                <form method="post" action="/admin/teachers/<%= t.id %>/delete" style="display:inline"
+                      onsubmit="return confirm('Remove <%= t.name %>?')">
+                  <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>

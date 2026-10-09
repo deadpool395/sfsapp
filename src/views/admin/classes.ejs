@@ -1,0 +1,114 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow"><%= year ? year.name : 'Administration' %></div>
+    <h1>Classes</h1>
+    <p class="lede">
+      A class is a name plus a division — "LKG A", "VIII C", "XI Science". Importing students
+      creates any missing classes automatically.
+    </p>
+  </div>
+  <% if (years.length > 1) { %>
+    <form method="get" action="/admin/classes" class="inline-form">
+      <label class="field">
+        <span>Academic year</span>
+        <select name="year" onchange="this.form.submit()">
+          <% years.forEach(function (y) { %>
+            <option value="<%= y.id %>" <%= year && year.id === y.id ? 'selected' : '' %>><%= y.name %></option>
+          <% }) %>
+        </select>
+      </label>
+    </form>
+  <% } %>
+</div>
+
+<% if (!year) { %>
+  <div class="card"><div class="empty">
+    <h3>No academic year yet</h3>
+    <p>Create an academic year before adding classes.</p>
+    <a class="btn btn-primary mt-4" href="/admin/years">Academic years</a>
+  </div></div>
+<% } else { %>
+
+  <div class="card mb-6">
+    <h3>Add a class to <%= year.name %></h3>
+    <form method="post" action="/admin/classes" class="inline-form mt-4">
+      <input type="hidden" name="year" value="<%= year.id %>">
+      <label class="field">
+        <span>Class &amp; division</span>
+        <input type="text" name="label" placeholder="e.g. LKG A, VIII C, XI Science" required list="class-names">
+        <datalist id="class-names">
+          <% classSequence.forEach(function (n) { %><option value="<%= n %> A"></option><% }) %>
+        </datalist>
+        <span class="hint">Typed as one value — it is split into class and division automatically.</span>
+      </label>
+      <button class="btn btn-primary" type="submit">Add class</button>
+    </form>
+  </div>
+
+  <div class="card card-flush">
+    <div class="card-head">
+      <h3 style="margin:0"><%= classes.length %> classes in <%= year.name %></h3>
+      <a class="btn btn-ghost btn-sm" href="/admin/students?year=<%= year.id %>">View students</a>
+    </div>
+    <% if (!classes.length) { %>
+      <div class="empty">
+        <h3>No classes yet</h3>
+        <p>Add them above, or import the student spreadsheet and let the classes be created for you.</p>
+        <a class="btn btn-primary mt-4" href="/admin/students/import">Import students</a>
+      </div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th style="width:8rem">Class</th><th style="width:10rem">Division</th>
+              <th class="mid" style="width:7rem">Students</th><th class="mid" style="width:7rem">Submissions</th>
+              <th style="width:11rem"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% classes.forEach(function (c) { %>
+              <tr>
+                <form method="post" action="/admin/classes/<%= c.id %>" id="cls-<%= c.id %>"></form>
+                <td><input type="text" name="name" value="<%= c.name %>" form="cls-<%= c.id %>"></td>
+                <td><input type="text" name="division" value="<%= c.division %>" form="cls-<%= c.id %>"></td>
+                <td class="mid tnum">
+                  <% if (c.student_count) { %>
+                    <a href="/admin/students?year=<%= year.id %>&class=<%= c.id %>"><%= c.student_count %></a>
+                  <% } else { %>0<% } %>
+                </td>
+                <td class="mid tnum">
+                  <% if (c.submission_count) { %>
+                    <a href="/admin/marks?year=<%= year.id %>&class=<%= c.id %>"><%= c.submission_count %></a>
+                  <% } else { %>0<% } %>
+                </td>
+                <td class="nowrap" style="text-align:right">
+                  <button class="btn btn-ghost btn-sm" type="submit" form="cls-<%= c.id %>">Save</button>
+                  <% if (!c.submission_count) { %>
+                    <form method="post" action="/admin/classes/<%= c.id %>/delete" style="display:inline"
+                          onsubmit="return confirmClassDelete(this, '<%= formatClassLabel(c) %>', <%= c.student_count %>)">
+                      <input type="hidden" name="confirm" value="">
+                      <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                    </form>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+
+  <script>
+    function confirmClassDelete(form, label, students) {
+      if (!students) return confirm('Delete ' + label + '?');
+      var typed = prompt(label + ' still has ' + students + ' student(s).\n\n' +
+        'They will be left without a class. Type DELETE to confirm:');
+      if (typed === null) return false;
+      form.querySelector('input[name="confirm"]').value = typed;
+      return true;
+    }
+  </script>
+
+<% } %>

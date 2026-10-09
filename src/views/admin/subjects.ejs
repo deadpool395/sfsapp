@@ -1,0 +1,82 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Administration</div>
+    <h1>Subjects</h1>
+    <p class="lede">
+      Every subject is marked on a unit test plus a second component. Most use an <strong>Assignment</strong>;
+      Computer and other practical subjects use a <strong>Practical</strong>. The teacher's entry sheet and all
+      reports follow this setting.
+    </p>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <h3>Add a subject</h3>
+  <form method="post" action="/admin/subjects" class="inline-form mt-4">
+    <label class="field">
+      <span>Subject name</span>
+      <input type="text" name="name" placeholder="e.g. Computer" required>
+    </label>
+    <label class="field narrow">
+      <span>Code</span>
+      <input type="text" name="code" placeholder="optional">
+    </label>
+    <label class="field">
+      <span>Second component</span>
+      <select name="secondary_component">
+        <option value="assignment">Assignment</option>
+        <option value="practical">Practical</option>
+      </select>
+    </label>
+    <button class="btn btn-primary" type="submit">Add subject</button>
+  </form>
+</div>
+
+<div class="card card-flush">
+  <div class="card-head">
+    <h3 style="margin:0"><%= subjects.length %> subjects</h3>
+    <span class="text-xs muted">Changing a component does not alter marks already submitted.</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Subject</th><th style="width:7rem">Code</th>
+          <th style="width:12rem">Second component</th>
+          <th class="mid" style="width:6rem">Active</th>
+          <th class="mid" style="width:7rem">Submissions</th>
+          <th style="width:11rem"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% subjects.forEach(function (s) { %>
+          <tr>
+            <form method="post" action="/admin/subjects/<%= s.id %>" id="subj-<%= s.id %>"></form>
+            <td><input type="text" name="name" value="<%= s.name %>" form="subj-<%= s.id %>"></td>
+            <td><input type="text" name="code" value="<%= s.code || '' %>" form="subj-<%= s.id %>"></td>
+            <td>
+              <select name="secondary_component" form="subj-<%= s.id %>">
+                <option value="assignment" <%= s.secondary_component === 'assignment' ? 'selected' : '' %>>Assignment</option>
+                <option value="practical"  <%= s.secondary_component === 'practical'  ? 'selected' : '' %>>Practical</option>
+              </select>
+            </td>
+            <td class="mid">
+              <input type="checkbox" name="is_active" <%= s.is_active ? 'checked' : '' %>
+                     form="subj-<%= s.id %>" style="width:auto" aria-label="Active">
+            </td>
+            <td class="mid tnum"><%= s.submission_count %></td>
+            <td class="nowrap" style="text-align:right">
+              <button class="btn btn-ghost btn-sm" type="submit" form="subj-<%= s.id %>">Save</button>
+              <% if (!s.submission_count) { %>
+                <form method="post" action="/admin/subjects/<%= s.id %>/delete" style="display:inline"
+                      onsubmit="return confirm('Delete <%= s.name %>?')">
+                  <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>

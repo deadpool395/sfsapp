@@ -1,0 +1,117 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Administration</div>
+    <h1>Settings</h1>
+    <p class="lede">The shared staff login, the maximum marks used to validate entry, and your own password.</p>
+  </div>
+</div>
+
+<div class="grid grid-top" style="grid-template-columns:repeat(auto-fit,minmax(330px,1fr))">
+
+  <div class="card">
+    <h3>Maximum marks</h3>
+    <p class="muted text-sm" style="margin-top:var(--space-2)">
+      Applied to new submissions. A subject's second component decides which of the two lower
+      values is used — Computer and other practical subjects use the practical maximum.
+    </p>
+    <form method="post" action="/admin/settings/marks" class="mt-4">
+      <label class="field">
+        <span>Unit test maximum</span>
+        <input type="number" name="default_unit_test_max" min="1" max="1000" step="0.5"
+               value="<%= settings.default_unit_test_max %>" required>
+      </label>
+      <label class="field">
+        <span>Assignment maximum</span>
+        <input type="number" name="default_assignment_max" min="1" max="1000" step="0.5"
+               value="<%= settings.default_assignment_max %>" required>
+      </label>
+      <label class="field">
+        <span>Practical maximum</span>
+        <input type="number" name="default_practical_max" min="1" max="1000" step="0.5"
+               value="<%= settings.default_practical_max %>" required>
+        <span class="hint">Used by subjects set to "Practical" on the Subjects page.</span>
+      </label>
+      <button class="btn btn-primary" type="submit">Save maxima</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Shared teacher login</h3>
+    <p class="muted text-sm" style="margin-top:var(--space-2)">
+      One username and password for all teaching staff. After signing in, each teacher picks their own
+      name, which is what gets recorded against their marks.
+    </p>
+    <form method="post" action="/admin/settings/teacher-login" class="mt-4">
+      <label class="field">
+        <span>Username</span>
+        <input type="text" name="teacher_common_username" value="<%= settings.teacher_common_username %>"
+               autocapitalize="none" spellcheck="false" required>
+      </label>
+      <label class="field">
+        <span>New password</span>
+        <input type="password" name="teacher_common_password" autocomplete="new-password"
+               placeholder="Leave blank to keep the current one">
+        <span class="hint">At least 6 characters.</span>
+      </label>
+      <label class="field">
+        <span>Confirm new password</span>
+        <input type="password" name="teacher_common_password_confirm" autocomplete="new-password">
+      </label>
+      <button class="btn btn-primary" type="submit">Update staff login</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Your administrator password</h3>
+    <p class="muted text-sm" style="margin-top:var(--space-2)">
+      Signed in as <strong><%= user.displayName %></strong>.
+    </p>
+    <form method="post" action="/admin/settings/admin-password" class="mt-4">
+      <label class="field">
+        <span>Current password</span>
+        <input type="password" name="current_password" autocomplete="current-password" required>
+      </label>
+      <label class="field">
+        <span>New password</span>
+        <input type="password" name="new_password" autocomplete="new-password" required>
+        <span class="hint">At least 8 characters.</span>
+      </label>
+      <label class="field">
+        <span>Confirm new password</span>
+        <input type="password" name="confirm_password" autocomplete="new-password" required>
+      </label>
+      <button class="btn btn-primary" type="submit">Change password</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>School name</h3>
+    <p class="muted text-sm" style="margin-top:var(--space-2)">
+      Shown in the header and at the top of every Excel and PDF report.
+    </p>
+    <form method="post" action="/admin/settings/school" class="mt-4">
+      <label class="field">
+        <span>Name</span>
+        <input type="text" name="school_name" value="<%= settings.school_name %>" required>
+      </label>
+      <button class="btn btn-primary" type="submit">Save name</button>
+    </form>
+
+    <h3 class="mt-6">Administrator accounts</h3>
+    <div class="table-wrap mt-2">
+      <table class="data">
+        <thead><tr><th>Username</th><th>Name</th><th>Created</th></tr></thead>
+        <tbody>
+          <% admins.forEach(function (a) { %>
+            <tr>
+              <td><strong><%= a.username %></strong></td>
+              <td><%= a.full_name || '—' %></td>
+              <td class="text-xs muted"><%= fmtDateTime(a.created_at) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,44 @@
+<header class="masthead">
+  <div class="shell">
+    <div class="masthead-inner">
+
+      <a class="brandmark" href="<%= user ? (user.role === 'admin' ? '/admin' : '/teacher') : '/login' %>">
+        <span class="crest"><img src="/logo/logo.png" alt="<%= schoolName %> crest"></span>
+        <span>
+          <span class="wordmark"><%= schoolName %></span><br>
+          <span class="sub"><%= user && user.role === 'admin' ? 'Admin Portal' : 'Staff Portal' %></span>
+        </span>
+      </a>
+
+      <% if (user && user.role === 'admin') { %>
+        <nav class="nav" aria-label="Admin sections">
+          <a href="/admin"            class="<%= currentPath === '/admin' ? 'is-active' : '' %>">Dashboard</a>
+          <a href="/admin/students"   class="<%= currentPath.startsWith('/admin/students') ? 'is-active' : '' %>">Students</a>
+          <a href="/admin/classes"    class="<%= currentPath.startsWith('/admin/classes') ? 'is-active' : '' %>">Classes</a>
+          <a href="/admin/subjects"   class="<%= currentPath.startsWith('/admin/subjects') ? 'is-active' : '' %>">Subjects</a>
+          <a href="/admin/teachers"   class="<%= currentPath.startsWith('/admin/teachers') ? 'is-active' : '' %>">Teachers</a>
+          <a href="/admin/marks"      class="<%= currentPath.startsWith('/admin/marks') ? 'is-active' : '' %>">Marks</a>
+          <a href="/admin/years"      class="<%= currentPath.startsWith('/admin/years') ? 'is-active' : '' %>">Years</a>
+          <a href="/admin/settings"   class="<%= currentPath.startsWith('/admin/settings') ? 'is-active' : '' %>">Settings</a>
+        </nav>
+        <div class="whoami">
+          <span><%= user.displayName %></span>
+          <form method="post" action="/logout"><button class="btn btn-ghost btn-sm" type="submit">Sign out</button></form>
+        </div>
+
+      <% } else if (user && user.role === 'teacher') { %>
+        <nav class="nav" aria-label="Teacher sections">
+          <a href="/teacher"             class="<%= currentPath === '/teacher' ? 'is-active' : '' %>">Dashboard</a>
+          <a href="/teacher/marks"       class="<%= currentPath === '/teacher/marks' || currentPath.startsWith('/teacher/marks/entry') ? 'is-active' : '' %>">Enter Marks</a>
+          <a href="/teacher/marks/view"  class="<%= currentPath.startsWith('/teacher/marks/view') ? 'is-active' : '' %>">My Submissions</a>
+        </nav>
+        <div class="whoami">
+          <% if (user.teacherName) { %><span><%= user.teacherName %></span><% } %>
+          <a class="btn btn-ghost btn-sm" href="/select-teacher">Switch</a>
+          <form method="post" action="/logout"><button class="btn btn-ghost btn-sm" type="submit">Sign out</button></form>
+        </div>
+      <% } %>
+
+    </div>
+  </div>
+</header>

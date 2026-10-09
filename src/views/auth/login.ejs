@@ -1,0 +1,69 @@
+<div class="auth-wrap">
+  <div class="auth-card card card-floating">
+
+    <div style="text-align:center;margin-bottom:var(--space-6)">
+      <img src="/logo/logo.png" alt="<%= schoolName %> crest" class="auth-crest">
+      <div class="eyebrow mt-4">Sign in</div>
+      <h1><%= schoolName %></h1>
+      <p class="muted text-sm mt-2 mb-0">Staff &amp; administration portal</p>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Login type">
+      <button type="button" role="tab" id="tab-teacher" aria-selected="<%= mode === 'teacher' %>" aria-controls="panel">Teacher</button>
+      <button type="button" role="tab" id="tab-admin"   aria-selected="<%= mode === 'admin' %>"   aria-controls="panel">Administrator</button>
+    </div>
+
+    <form method="post" action="/login" id="panel" autocomplete="on">
+      <input type="hidden" name="mode" id="mode" value="<%= mode %>">
+
+      <p class="hint" id="mode-help" style="margin-top:0;margin-bottom:var(--space-4)">
+        <% if (mode === 'teacher') { %>
+          All teachers share one login. You will choose your own name on the next screen.
+        <% } else { %>
+          Administrator access to students, classes, subjects, teachers and mark records.
+        <% } %>
+      </p>
+
+      <label class="field">
+        <span>Username</span>
+        <input type="text" name="username" value="<%= username %>" required autofocus
+               autocapitalize="none" spellcheck="false" autocomplete="username">
+      </label>
+
+      <label class="field">
+        <span>Password</span>
+        <input type="password" name="password" required autocomplete="current-password">
+      </label>
+
+      <button class="btn btn-primary" type="submit" style="width:100%">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>
+        </svg>
+        Sign in
+      </button>
+    </form>
+
+  </div>
+</div>
+
+<script>
+  (function () {
+    var tabs = { teacher: document.getElementById('tab-teacher'), admin: document.getElementById('tab-admin') };
+    var mode = document.getElementById('mode');
+    var help = document.getElementById('mode-help');
+    var copy = {
+      teacher: 'All teachers share one login. You will choose your own name on the next screen.',
+      admin: 'Administrator access to students, classes, subjects, teachers and mark records.'
+    };
+
+    Object.keys(tabs).forEach(function (key) {
+      tabs[key].addEventListener('click', function () {
+        mode.value = key;
+        help.textContent = copy[key];
+        Object.keys(tabs).forEach(function (k) {
+          tabs[k].setAttribute('aria-selected', String(k === key));
+        });
+      });
+    });
+  })();
+</script>

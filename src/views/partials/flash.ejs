@@ -1,0 +1,22 @@
+<% if (flash && flash.length) { %>
+  <% flash.forEach(function (f) { %>
+    <%
+      var cls = f.type === 'success' ? 'notice-success'
+              : f.type === 'error'   ? 'notice-error'
+              : f.type === 'warn'    ? 'notice-warn'
+              : 'notice-info';
+    %>
+    <div class="notice <%= cls %>" role="<%= f.type === 'error' ? 'alert' : 'status' %>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <% if (f.type === 'success') { %>
+          <path d="M20 6 9 17l-5-5"/>
+        <% } else if (f.type === 'error') { %>
+          <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+        <% } else { %>
+          <circle cx="12" cy="12" r="9"/><path d="M12 16v-5m0-3h.01"/>
+        <% } %>
+      </svg>
+      <div><%- f.message %></div>
+    </div>
+  <% }) %>
+<% } %>

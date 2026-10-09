@@ -1,0 +1,86 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Administration</div>
+    <h1>Academic years</h1>
+    <p class="lede">Student records, classes and marks are all stored per academic year. The current year is pre-selected everywhere.</p>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <h3>Add an academic year</h3>
+  <form method="post" action="/admin/years" class="inline-form mt-4">
+    <label class="field">
+      <span>Year</span>
+      <input type="text" name="name" placeholder="2026-2027" pattern="\d{4}-\d{4}" required>
+      <span class="hint">Format: 2026-2027</span>
+    </label>
+    <label class="field">
+      <span>Starts</span>
+      <input type="date" name="start_date">
+    </label>
+    <label class="field">
+      <span>Ends</span>
+      <input type="date" name="end_date">
+    </label>
+    <button class="btn btn-primary" type="submit">Add year</button>
+  </form>
+</div>
+
+<div class="card card-flush">
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Year</th><th class="mid">Status</th><th class="mid">Classes</th>
+          <th class="mid">Students</th><th class="mid">Submissions</th><th>Dates</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!years.length) { %>
+          <tr><td colspan="7"><div class="empty"><h3>No academic years yet</h3><p>Add 2026-2027 above to begin.</p></div></td></tr>
+        <% } %>
+        <% years.forEach(function (y) { %>
+          <tr>
+            <td><strong style="font-size:1rem"><%= y.name %></strong></td>
+            <td class="mid">
+              <% if (y.is_active) { %><span class="badge badge-brand">Current</span>
+              <% } else { %><span class="badge badge-neutral">Archived</span><% } %>
+            </td>
+            <td class="mid tnum"><%= y.class_count %></td>
+            <td class="mid tnum"><%= y.student_count.toLocaleString('en-IN') %></td>
+            <td class="mid tnum"><%= y.submission_count %></td>
+            <td class="text-xs muted">
+              <%= y.start_date ? new Date(y.start_date).toLocaleDateString('en-IN') : '—' %>
+              to <%= y.end_date ? new Date(y.end_date).toLocaleDateString('en-IN') : '—' %>
+            </td>
+            <td class="nowrap" style="text-align:right">
+              <% if (!y.is_active) { %>
+                <form method="post" action="/admin/years/<%= y.id %>/activate" style="display:inline">
+                  <button class="btn btn-ghost btn-sm" type="submit">Make current</button>
+                </form>
+              <% } %>
+              <form method="post" action="/admin/years/<%= y.id %>/delete" style="display:inline"
+                    onsubmit="return confirmDelete(this, '<%= y.name %>', <%= y.student_count + y.submission_count %>)">
+                <input type="hidden" name="confirm" value="">
+                <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  function confirmDelete(form, name, dataCount) {
+    if (!dataCount) return confirm('Delete ' + name + '?');
+    var typed = prompt(
+      'Deleting ' + name + ' also deletes its classes, students and all mark submissions.\n\n' +
+      'This cannot be undone. Type the year name exactly to confirm:'
+    );
+    if (typed === null) return false;
+    form.querySelector('input[name="confirm"]').value = typed;
+    return true;
+  }
+</script>

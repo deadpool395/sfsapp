@@ -1,0 +1,13 @@
+<%
+  var labels = ['Select class & term', 'Enter marks', 'Submitted'];
+%>
+<div class="steps" aria-label="Progress">
+  <% labels.forEach(function (label, i) { %>
+    <% var n = i + 1; %>
+    <% if (i) { %><span class="sep" aria-hidden="true"></span><% } %>
+    <span class="step <%= n < current ? 'is-done' : (n === current ? 'is-current' : '') %>">
+      <span class="dot"><%= n < current ? '✓' : n %></span>
+      <%= label %>
+    </span>
+  <% }) %>
+</div>

@@ -1,0 +1,112 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Administration</div>
+    <h1>Dashboard</h1>
+    <p class="lede">
+      <% if (year) { %>
+        Current academic year <strong><%= year.name %></strong>.
+      <% } else { %>
+        No academic year is active yet — <a href="/admin/years">create one</a> to begin.
+      <% } %>
+    </p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-ghost" href="/admin/students/import">Import students</a>
+    <a class="btn btn-primary" href="/admin/marks">Mark submissions</a>
+  </div>
+</div>
+
+<div class="grid grid-4 mb-6">
+  <a class="stat" href="/admin/students" style="text-decoration:none">
+    <div class="k">Active students</div>
+    <div class="n tnum"><%= counts.students.toLocaleString('en-IN') %></div>
+  </a>
+  <a class="stat" href="/admin/classes" style="text-decoration:none">
+    <div class="k">Classes</div>
+    <div class="n tnum"><%= counts.classes %></div>
+  </a>
+  <a class="stat" href="/admin/teachers" style="text-decoration:none">
+    <div class="k">Teachers</div>
+    <div class="n tnum"><%= counts.teachers %></div>
+  </a>
+  <a class="stat" href="/admin/subjects" style="text-decoration:none">
+    <div class="k">Subjects</div>
+    <div class="n tnum"><%= counts.subjects %></div>
+  </a>
+</div>
+
+<div class="grid grid-top" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+
+  <div class="card card-flush">
+    <div class="card-head">
+      <h3 style="margin:0">Latest mark submissions</h3>
+      <a class="btn btn-ghost btn-sm" href="/admin/marks">View all <%= counts.submissions %></a>
+    </div>
+    <% if (!recentSubmissions.length) { %>
+      <div class="empty">
+        <h3>No marks submitted yet</h3>
+        <p>When teachers submit unit test and assignment marks they will appear here.</p>
+      </div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr><th>Class</th><th>Subject</th><th>Term</th><th>Teacher</th><th class="mid">Pupils</th><th>When</th></tr>
+          </thead>
+          <tbody>
+            <% recentSubmissions.forEach(function (s) { %>
+              <tr>
+                <td><a href="/admin/marks/<%= s.id %>"><strong><%= formatClassLabel({ name: s.class_name, division: s.class_division }) %></strong></a></td>
+                <td><%= s.subject_name %></td>
+                <td><%= termLabel(s.term) %></td>
+                <td><%= s.teacher_name %></td>
+                <td class="mid tnum"><%= s.student_count %></td>
+                <td class="text-xs muted"><%= fmtDateTime(s.submitted_at) %>
+                  <% if (s.updated_at) { %><br><span style="color:var(--accent-600)">edited</span><% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h3>Last student import</h3>
+      <% if (!lastImport) { %>
+        <p class="muted text-sm">No imports yet. Upload the school's student spreadsheet to get started.</p>
+        <a class="btn btn-primary btn-sm mt-2" href="/admin/students/import">Import students</a>
+      <% } else { %>
+        <p class="muted text-sm" style="margin-top:var(--space-2)">
+          <strong><%= lastImport.filename || 'spreadsheet' %></strong><br>
+          <%= fmtDateTime(lastImport.created_at) %> by <%= lastImport.created_by %>
+        </p>
+        <div class="row text-sm">
+          <span class="badge badge-brand"><%= lastImport.inserted %> added</span>
+          <span class="badge badge-neutral"><%= lastImport.updated %> updated</span>
+          <% if (lastImport.skipped) { %><span class="badge badge-danger"><%= lastImport.skipped %> skipped</span><% } %>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <h3>Recent admin activity</h3>
+      <% if (!recentAudit.length) { %>
+        <p class="muted text-sm">Nothing recorded yet. Mark edits and releases are logged here.</p>
+      <% } else { %>
+        <ul style="list-style:none;padding:0;margin:var(--space-2) 0 0;font-size:0.85rem">
+          <% recentAudit.forEach(function (a) { %>
+            <li style="padding:var(--space-2) 0;border-bottom:1px solid var(--hairline)">
+              <strong><%= a.action %></strong>
+              <span class="muted">— <%= a.actor_name || a.actor_type %></span>
+              <div class="text-xs faint"><%= fmtDateTime(a.created_at) %></div>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+  </div>
+
+</div>

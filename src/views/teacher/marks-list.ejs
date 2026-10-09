@@ -1,0 +1,93 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Assignment &amp; Unit Test marks</div>
+    <h1>My submissions</h1>
+    <p class="lede">Every set of marks recorded against your name. Open one to view it or download a report.</p>
+  </div>
+  <a class="btn btn-primary" href="/teacher/marks">Enter new marks</a>
+</div>
+
+<div class="card mb-6">
+  <form method="get" action="/teacher/marks/view" class="inline-form">
+    <label class="field">
+      <span>Academic year</span>
+      <select name="year">
+        <option value="">All years</option>
+        <% years.forEach(function (y) { %>
+          <option value="<%= y.id %>" <%= String(filters.year) === String(y.id) ? 'selected' : '' %>><%= y.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label class="field">
+      <span>Subject</span>
+      <select name="subject">
+        <option value="">All subjects</option>
+        <% subjects.forEach(function (s) { %>
+          <option value="<%= s.id %>" <%= String(filters.subject) === String(s.id) ? 'selected' : '' %>><%= s.name %></option>
+        <% }) %>
+      </select>
+    </label>
+    <label class="field narrow">
+      <span>Term</span>
+      <select name="term">
+        <option value="">All</option>
+        <% TERMS.forEach(function (t) { %>
+          <option value="<%= t.value %>" <%= filters.term === t.value ? 'selected' : '' %>><%= t.label %></option>
+        <% }) %>
+      </select>
+    </label>
+    <div class="btn-row">
+      <button class="btn btn-ghost" type="submit">Filter</button>
+      <a class="btn btn-quiet" href="/teacher/marks/view">Clear</a>
+    </div>
+  </form>
+</div>
+
+<div class="card card-flush">
+  <% if (!submissions.length) { %>
+    <div class="empty">
+      <h3>Nothing submitted yet</h3>
+      <p>Marks you submit will be listed here with links to Excel and PDF reports.</p>
+      <a class="btn btn-primary mt-4" href="/teacher/marks">Enter marks</a>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Class</th>
+            <th>Subject</th>
+            <th>Term</th>
+            <th class="mid">Component</th>
+            <th class="mid">Students</th>
+            <th>Submitted</th>
+            <th class="mid">Report</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% submissions.forEach(function (s) { %>
+            <tr>
+              <td><a href="/teacher/marks/view/<%= s.id %>"><strong><%= formatClassLabel({ name: s.class_name, division: s.class_division }) %></strong></a>
+                <div class="text-xs muted"><%= s.year_name %></div></td>
+              <td><%= s.subject_name %></td>
+              <td><%= termLabel(s.term) %></td>
+              <td class="mid">
+                <span class="badge <%= s.secondary_component === 'practical' ? 'badge-accent' : 'badge-brand' %>">
+                  <%= componentLabel(s.secondary_component) %>
+                </span>
+              </td>
+              <td class="mid tnum"><%= s.student_count %></td>
+              <td class="text-sm"><%= fmtDateTime(s.submitted_at) %>
+                <% if (s.updated_at) { %><div class="text-xs" style="color:var(--accent-600)">edited by admin</div><% } %>
+              </td>
+              <td class="mid nowrap">
+                <a class="btn btn-ghost btn-sm" href="/teacher/marks/view/<%= s.id %>/excel">Excel</a>
+                <a class="btn btn-ghost btn-sm" href="/teacher/marks/view/<%= s.id %>/pdf">PDF</a>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>

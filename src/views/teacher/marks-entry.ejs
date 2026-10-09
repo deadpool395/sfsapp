@@ -1,0 +1,225 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow"><%= sel.cls.year_name %> &middot; <%= termLabel(sel.term) %></div>
+    <h1><%= formatClassLabel(sel.cls) %> — <%= sel.subject.name %></h1>
+    <p class="lede">
+      Enter the unit test mark and the <strong><%= secondaryLabel.toLowerCase() %></strong> mark for each student.
+      Leave a box blank for a student who was absent or not assessed.
+    </p>
+  </div>
+  <a class="btn btn-ghost" href="/teacher/marks?year=<%= sel.yearId %>&class=<%= sel.classId %>&subject=<%= sel.subjectId %>&term=<%= sel.term %>">Change selection</a>
+</div>
+
+<%- include('../partials/steps', { current: 2 }) %>
+
+<div class="notice notice-info">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9"/><path d="M12 16v-5m0-3h.01"/>
+  </svg>
+  <div>
+    Marks can be submitted <strong>once</strong> for this class, subject and term. After you submit, the sheet
+    locks — an administrator must make any later corrections. Check your entries before submitting.
+  </div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="notice notice-error" role="alert">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+    </svg>
+    <div>
+      <strong>Nothing was saved.</strong> Please fix the following and submit again:
+      <ul style="margin:var(--space-2) 0 0;padding-left:1.1rem">
+        <% errors.slice(0, 12).forEach(function (e) { %><li><%= e %></li><% }) %>
+        <% if (errors.length > 12) { %><li>…and <%= errors.length - 12 %> more.</li><% } %>
+      </ul>
+    </div>
+  </div>
+<% } %>
+
+<% if (!roster.length) { %>
+  <div class="card">
+    <div class="empty">
+      <h3>No students in this class</h3>
+      <p>
+        <%= formatClassLabel(sel.cls) %> has no active students for <%= sel.cls.year_name %>.
+        An administrator needs to import or add students first.
+      </p>
+      <a class="btn btn-ghost mt-4" href="/teacher/marks">Choose another class</a>
+    </div>
+  </div>
+<% } else { %>
+
+  <form method="post" action="/teacher/marks/entry" id="markform">
+    <input type="hidden" name="year" value="<%= sel.yearId %>">
+    <input type="hidden" name="class" value="<%= sel.classId %>">
+    <input type="hidden" name="subject" value="<%= sel.subjectId %>">
+    <input type="hidden" name="term" value="<%= sel.term %>">
+
+    <div class="card card-flush">
+      <div class="card-head">
+        <div>
+          <h3 style="margin:0"><%= roster.length %> students</h3>
+          <div class="text-xs muted">
+            Unit test out of <%= unitTestMax %> &middot; <%= secondaryLabel %> out of <%= secondaryMax %>
+          </div>
+        </div>
+        <div class="row">
+          <span class="badge <%= secondaryComponent === 'practical' ? 'badge-accent' : 'badge-brand' %>">
+            <%= secondaryLabel %>
+          </span>
+          <span class="text-xs muted" id="progress">0 of <%= roster.length %> entered</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th class="mid" style="width:3.5rem">Sl.</th>
+              <th class="mid" style="width:4.5rem">Roll</th>
+              <th style="width:8rem">Adm. No.</th>
+              <th>Student Name</th>
+              <th class="mid" style="width:8rem">
+                Unit Test
+                <br><span class="text-xs" style="text-transform:none;letter-spacing:0">max <%= unitTestMax %></span>
+              </th>
+              <th class="mid" style="width:8rem">
+                <%= secondaryLabel %>
+                <br><span class="text-xs" style="text-transform:none;letter-spacing:0">max <%= secondaryMax %></span>
+              </th>
+              <th class="mid" style="width:5.5rem">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% roster.forEach(function (st, i) { %>
+              <% var v = values[st.id] || {}; %>
+              <tr data-row="<%= st.id %>">
+                <td class="mid tnum"><%= i + 1 %></td>
+                <td class="mid tnum"><%= st.roll_no || '—' %></td>
+                <td class="tnum"><%= st.admission_no || '—' %></td>
+                <td class="row-name"><%= st.full_name %></td>
+                <td class="mid">
+                  <input class="entry-input js-mark" type="number" inputmode="decimal"
+                         name="ut_<%= st.id %>" value="<%= v.unitTest || '' %>"
+                         min="0" max="<%= unitTestMax %>" step="0.25"
+                         data-max="<%= unitTestMax %>"
+                         aria-label="Unit test mark for <%= st.full_name %>">
+                </td>
+                <td class="mid">
+                  <input class="entry-input js-mark" type="number" inputmode="decimal"
+                         name="sec_<%= st.id %>" value="<%= v.secondary || '' %>"
+                         min="0" max="<%= secondaryMax %>" step="0.25"
+                         data-max="<%= secondaryMax %>"
+                         aria-label="<%= secondaryLabel %> mark for <%= st.full_name %>">
+                </td>
+                <td class="mid tnum js-total" style="font-weight:600">—</td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card-foot">
+        <div class="row-between">
+          <span class="text-sm muted">
+            Submitting records these marks against <strong><%= user.teacherName %></strong>.
+          </span>
+          <div class="btn-row">
+            <a class="btn btn-quiet" href="/teacher/marks">Cancel</a>
+            <button class="btn btn-primary" type="submit" id="submitbtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+              Submit marks
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+<% } %>
+
+<script>
+  (function () {
+    var form = document.getElementById('markform');
+    if (!form) return;
+
+    var rows = Array.prototype.slice.call(form.querySelectorAll('tr[data-row]'));
+    var progress = document.getElementById('progress');
+
+    function refreshRow(row) {
+      var inputs = row.querySelectorAll('.js-mark');
+      var sum = 0;
+      var any = false;
+      var bad = false;
+
+      inputs.forEach(function (input) {
+        var text = input.value.trim();
+        var max = Number(input.getAttribute('data-max'));
+        input.classList.remove('is-bad');
+        if (text === '') return;
+        var n = Number(text);
+        if (!isFinite(n) || n < 0 || n > max) {
+          input.classList.add('is-bad');
+          bad = true;
+          return;
+        }
+        sum += n;
+        any = true;
+      });
+
+      var cell = row.querySelector('.js-total');
+      cell.textContent = bad ? '!' : (any ? String(Math.round(sum * 100) / 100) : '—');
+      cell.style.color = bad ? 'var(--danger-500)' : '';
+      return any;
+    }
+
+    function refreshAll() {
+      var entered = 0;
+      rows.forEach(function (row) { if (refreshRow(row)) entered++; });
+      if (progress) progress.textContent = entered + ' of ' + rows.length + ' entered';
+    }
+
+    form.addEventListener('input', function (e) {
+      if (!e.target.classList.contains('js-mark')) return;
+      refreshRow(e.target.closest('tr[data-row]'));
+      refreshAll();
+    });
+
+    // Enter moves down the same column rather than submitting the form.
+    form.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || !e.target.classList.contains('js-mark')) return;
+      e.preventDefault();
+      var name = e.target.getAttribute('name').split('_')[0];
+      var all = Array.prototype.slice.call(form.querySelectorAll('input[name^="' + name + '_"]'));
+      var next = all[all.indexOf(e.target) + 1];
+      if (next) { next.focus(); next.select(); }
+    });
+
+    form.addEventListener('submit', function (e) {
+      if (form.querySelector('.is-bad')) {
+        e.preventDefault();
+        alert('Some marks are outside the allowed range. Fix the highlighted boxes first.');
+        return;
+      }
+      var entered = rows.filter(function (r) {
+        return Array.prototype.slice.call(r.querySelectorAll('.js-mark')).some(function (i) { return i.value.trim() !== ''; });
+      }).length;
+      if (!entered) {
+        e.preventDefault();
+        alert('Enter at least one mark before submitting.');
+        return;
+      }
+      var blank = rows.length - entered;
+      var msg = 'Submit marks for ' + entered + ' of ' + rows.length + ' students?'
+        + (blank ? '\n\n' + blank + ' student(s) will be recorded as absent / not assessed.' : '')
+        + '\n\nThis class, subject and term will then be locked. Only an administrator can change it afterwards.';
+      if (!confirm(msg)) { e.preventDefault(); return; }
+      document.getElementById('submitbtn').disabled = true;
+    });
+
+    refreshAll();
+  })();
+</script>

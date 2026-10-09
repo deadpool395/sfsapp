@@ -1,0 +1,126 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Assignment &amp; Unit Test marks</div>
+    <h1>Choose a class and term</h1>
+    <p class="lede">Pick the academic year, class, subject and term. The entry sheet lists every student in that class.</p>
+  </div>
+</div>
+
+<%- include('../partials/steps', { current: 1 }) %>
+
+<div class="card card-floating" style="max-width:720px">
+  <% if (!years.length) { %>
+    <div class="empty">
+      <h3>No academic years yet</h3>
+      <p>An administrator needs to create an academic year and its classes first.</p>
+    </div>
+  <% } else { %>
+    <form method="get" action="/teacher/marks/entry" id="selform">
+      <div class="grid grid-2">
+        <label class="field">
+          <span>Academic year</span>
+          <select name="year" id="year" required>
+            <% years.forEach(function (y) { %>
+              <option value="<%= y.id %>" <%= String(selected.year) === String(y.id) ? 'selected' : '' %>>
+                <%= y.name %><%= y.is_active ? ' (current)' : '' %>
+              </option>
+            <% }) %>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Class &amp; division</span>
+          <%# Rendered server-side so the list is usable before/without JS;
+              the script below only refills it when the year changes. %>
+          <select name="class" id="class" required>
+            <option value="">Choose a class…</option>
+            <% (classesByYear[selected.year] || []).forEach(function (c) { %>
+              <option value="<%= c.id %>" <%= String(selected.class) === String(c.id) ? 'selected' : '' %>>
+                <%= c.label %>
+              </option>
+            <% }) %>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Subject</span>
+          <select name="subject" id="subject" required>
+            <option value="">Choose a subject…</option>
+            <% subjects.forEach(function (s) { %>
+              <option value="<%= s.id %>" data-component="<%= s.secondary_component %>"
+                      <%= String(selected.subject) === String(s.id) ? 'selected' : '' %>>
+                <%= s.name %>
+              </option>
+            <% }) %>
+          </select>
+          <span class="hint" id="component-hint">The second mark column depends on the subject.</span>
+        </label>
+
+        <label class="field">
+          <span>Term</span>
+          <select name="term" id="term" required>
+            <option value="">Choose a term…</option>
+            <% TERMS.forEach(function (t) { %>
+              <option value="<%= t.value %>" <%= selected.term === t.value ? 'selected' : '' %>><%= t.label %></option>
+            <% }) %>
+          </select>
+        </label>
+      </div>
+
+      <div class="btn-row mt-4">
+        <button class="btn btn-primary" type="submit">
+          Open entry sheet
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6"/>
+          </svg>
+        </button>
+        <a class="btn btn-quiet" href="/teacher">Cancel</a>
+      </div>
+    </form>
+  <% } %>
+</div>
+
+<script>
+  (function () {
+    var classesByYear = <%- JSON.stringify(classesByYear) %>;
+    var yearSel = document.getElementById('year');
+    var classSel = document.getElementById('class');
+    var subjectSel = document.getElementById('subject');
+    var hint = document.getElementById('component-hint');
+    if (!yearSel) return;
+
+    var preselectedClass = <%- JSON.stringify(selected.class || '') %>;
+
+    function fillClasses() {
+      var list = classesByYear[yearSel.value] || [];
+      classSel.innerHTML = '';
+      if (!list.length) {
+        classSel.appendChild(new Option('No classes in this year yet', ''));
+        return;
+      }
+      classSel.appendChild(new Option('Choose a class…', ''));
+      list.forEach(function (c) {
+        var opt = new Option(c.label, c.id);
+        if (String(preselectedClass) === String(c.id)) opt.selected = true;
+        classSel.appendChild(opt);
+      });
+    }
+
+    function showComponent() {
+      var opt = subjectSel.options[subjectSel.selectedIndex];
+      var kind = opt ? opt.getAttribute('data-component') : null;
+      if (!kind) {
+        hint.textContent = 'The second mark column depends on the subject.';
+      } else if (kind === 'practical') {
+        hint.textContent = 'This subject is assessed on a practical — the second column will be "Practical".';
+      } else {
+        hint.textContent = 'This subject is assessed on an assignment — the second column will be "Assignment".';
+      }
+    }
+
+    // The initial options are rendered server-side; only refill on year change.
+    yearSel.addEventListener('change', function () { preselectedClass = ''; fillClasses(); });
+    subjectSel.addEventListener('change', showComponent);
+    showComponent();
+  })();
+</script>

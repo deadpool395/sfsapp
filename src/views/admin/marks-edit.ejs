@@ -1,0 +1,146 @@
+<%
+  var s = data.submission;
+  var clsLabel = formatClassLabel({ name: s.class_name, division: s.class_division });
+%>
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Administrator correction &middot; <%= s.year_name %></div>
+    <h1><%= clsLabel %> — <%= s.subject_name %> — <%= termLabel(s.term) %></h1>
+    <p class="lede">
+      Originally entered by <strong><%= s.teacher_name %></strong>. Every change is written to the audit trail
+      with the old and new value.
+    </p>
+  </div>
+  <a class="btn btn-ghost" href="/admin/marks/<%= s.id %>">Cancel</a>
+</div>
+
+<div class="notice notice-warn">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+  </svg>
+  <div>
+    Marks are validated against the maxima this submission was recorded under —
+    unit test out of <strong><%= fmtMark(data.unitMax) %></strong>,
+    <%= secondaryLabel.toLowerCase() %> out of <strong><%= fmtMark(data.secMax) %></strong> —
+    not the current defaults. Leave a box blank to record the student as absent.
+  </div>
+</div>
+
+<% if (errors && errors.length) { %>
+  <div class="notice notice-error" role="alert">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+    </svg>
+    <div>
+      <strong>Nothing was saved.</strong>
+      <ul style="margin:var(--space-2) 0 0;padding-left:1.1rem">
+        <% errors.slice(0, 12).forEach(function (e) { %><li><%= e %></li><% }) %>
+        <% if (errors.length > 12) { %><li>…and <%= errors.length - 12 %> more.</li><% } %>
+      </ul>
+    </div>
+  </div>
+<% } %>
+
+<form method="post" action="/admin/marks/<%= s.id %>/edit" id="editform">
+  <div class="card card-flush">
+    <div class="card-head">
+      <h3 style="margin:0"><%= data.students.length %> students</h3>
+      <span class="badge <%= s.secondary_component === 'practical' ? 'badge-accent' : 'badge-brand' %>">
+        <%= secondaryLabel %>
+      </span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th class="mid" style="width:3.5rem">Sl.</th>
+            <th class="mid" style="width:4.5rem">Roll</th>
+            <th style="width:8rem">Adm. No.</th>
+            <th>Student Name</th>
+            <th class="mid" style="width:8rem">Unit Test<br>
+              <span class="text-xs" style="text-transform:none;letter-spacing:0">max <%= fmtMark(data.unitMax) %></span></th>
+            <th class="mid" style="width:8rem"><%= secondaryLabel %><br>
+              <span class="text-xs" style="text-transform:none;letter-spacing:0">max <%= fmtMark(data.secMax) %></span></th>
+            <th class="mid" style="width:5.5rem">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% data.students.forEach(function (st) { %>
+            <%
+              var v = values[st.studentId];
+              var utVal = v ? v.unitTest : (st.unitTest === null ? '' : st.unitTest);
+              var secVal = v ? v.secondary : (st.secondary === null ? '' : st.secondary);
+            %>
+            <tr data-row="<%= st.studentId %>">
+              <td class="mid tnum"><%= st.index %></td>
+              <td class="mid tnum"><%= st.rollNo || '—' %></td>
+              <td class="tnum"><%= st.admissionNo || '—' %></td>
+              <td class="row-name"><%= st.name %></td>
+              <td class="mid">
+                <input class="entry-input js-mark" type="number" inputmode="decimal"
+                       name="ut_<%= st.studentId %>" value="<%= utVal %>"
+                       min="0" max="<%= data.unitMax %>" step="0.25" data-max="<%= data.unitMax %>"
+                       aria-label="Unit test mark for <%= st.name %>">
+              </td>
+              <td class="mid">
+                <input class="entry-input js-mark" type="number" inputmode="decimal"
+                       name="sec_<%= st.studentId %>" value="<%= secVal %>"
+                       min="0" max="<%= data.secMax %>" step="0.25" data-max="<%= data.secMax %>"
+                       aria-label="<%= secondaryLabel %> mark for <%= st.name %>">
+              </td>
+              <td class="mid tnum js-total" style="font-weight:600">—</td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card-foot">
+      <div class="row-between">
+        <span class="text-sm muted">Saving records you (<strong><%= user.displayName %></strong>) as the editor.</span>
+        <div class="btn-row">
+          <a class="btn btn-quiet" href="/admin/marks/<%= s.id %>">Cancel</a>
+          <button class="btn btn-primary" type="submit">Save corrections</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+  (function () {
+    var form = document.getElementById('editform');
+    if (!form) return;
+    var rows = Array.prototype.slice.call(form.querySelectorAll('tr[data-row]'));
+
+    function refresh(row) {
+      var sum = 0, any = false, bad = false;
+      row.querySelectorAll('.js-mark').forEach(function (input) {
+        var text = input.value.trim();
+        var max = Number(input.getAttribute('data-max'));
+        input.classList.remove('is-bad');
+        if (text === '') return;
+        var n = Number(text);
+        if (!isFinite(n) || n < 0 || n > max) { input.classList.add('is-bad'); bad = true; return; }
+        sum += n; any = true;
+      });
+      var cell = row.querySelector('.js-total');
+      cell.textContent = bad ? '!' : (any ? String(Math.round(sum * 100) / 100) : '—');
+      cell.style.color = bad ? 'var(--danger-500)' : '';
+    }
+
+    form.addEventListener('input', function (e) {
+      if (e.target.classList.contains('js-mark')) refresh(e.target.closest('tr[data-row]'));
+    });
+
+    form.addEventListener('submit', function (e) {
+      if (form.querySelector('.is-bad')) {
+        e.preventDefault();
+        alert('Some marks are outside the allowed range. Fix the highlighted boxes first.');
+      }
+    });
+
+    rows.forEach(refresh);
+  })();
+</script>

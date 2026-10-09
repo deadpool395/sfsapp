@@ -1,0 +1,151 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow"><%= year ? year.name : 'Administration' %></div>
+    <h1>Students</h1>
+    <p class="lede">
+      <% if (year) { %><strong><%= total.toLocaleString('en-IN') %></strong> matching records in <%= year.name %>.<% } %>
+    </p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-primary" href="/admin/students/import<%= year ? '?year=' + year.id : '' %>">Import from Excel</a>
+    <% if (year) { %>
+      <a class="btn btn-ghost" href="/admin/students/export?year=<%= year.id %>">Export</a>
+    <% } %>
+  </div>
+</div>
+
+<% if (!year) { %>
+  <div class="card"><div class="empty">
+    <h3>No academic year yet</h3>
+    <p>Create an academic year before adding students.</p>
+    <a class="btn btn-primary mt-4" href="/admin/years">Academic years</a>
+  </div></div>
+<% } else { %>
+
+  <div class="card mb-6">
+    <form method="get" action="/admin/students" class="inline-form">
+      <label class="field">
+        <span>Academic year</span>
+        <select name="year">
+          <% years.forEach(function (y) { %>
+            <option value="<%= y.id %>" <%= year.id === y.id ? 'selected' : '' %>><%= y.name %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label class="field">
+        <span>Class</span>
+        <select name="class">
+          <option value="">All classes</option>
+          <% classes.forEach(function (c) { %>
+            <option value="<%= c.id %>" <%= String(filters.class) === String(c.id) ? 'selected' : '' %>><%= formatClassLabel(c) %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label class="field">
+        <span>Search</span>
+        <input type="search" name="q" value="<%= filters.q %>" placeholder="Name or admission number">
+      </label>
+      <label class="field narrow" style="flex:0 0 auto">
+        <span>Inactive</span>
+        <input type="checkbox" name="inactive" <%= filters.inactive === 'on' ? 'checked' : '' %> style="width:auto">
+      </label>
+      <div class="btn-row">
+        <button class="btn btn-ghost" type="submit">Filter</button>
+        <a class="btn btn-quiet" href="/admin/students?year=<%= year.id %>">Clear</a>
+      </div>
+    </form>
+  </div>
+
+  <details class="card mb-6">
+    <summary style="cursor:pointer;font-weight:600;color:var(--brand-800)">Add a single student</summary>
+    <form method="post" action="/admin/students" class="inline-form mt-4">
+      <input type="hidden" name="year" value="<%= year.id %>">
+      <label class="field"><span>Full name</span><input type="text" name="full_name" required></label>
+      <label class="field narrow"><span>Admission no.</span><input type="text" name="admission_no"></label>
+      <label class="field narrow"><span>Roll no.</span><input type="text" name="roll_no"></label>
+      <label class="field">
+        <span>Class</span>
+        <select name="class_id">
+          <option value="">No class</option>
+          <% classes.forEach(function (c) { %><option value="<%= c.id %>"><%= formatClassLabel(c) %></option><% }) %>
+        </select>
+      </label>
+      <label class="field narrow"><span>Gender</span>
+        <select name="gender"><option value="">—</option><option>Male</option><option>Female</option></select>
+      </label>
+      <label class="field narrow"><span>Date of birth</span><input type="date" name="dob"></label>
+      <button class="btn btn-primary" type="submit">Add student</button>
+    </form>
+  </details>
+
+  <div class="card card-flush">
+    <% if (!students.length) { %>
+      <div class="empty">
+        <h3>No students match</h3>
+        <p>Adjust the filters, or import the school's spreadsheet.</p>
+        <a class="btn btn-primary mt-4" href="/admin/students/import?year=<%= year.id %>">Import from Excel</a>
+      </div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr>
+              <th style="width:9rem">Adm. No.</th><th>Name</th><th style="width:9rem">Class</th>
+              <th style="width:6rem">Roll</th><th style="width:7rem">Gender</th>
+              <th class="mid" style="width:5rem">Active</th><th style="width:10rem"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach(function (s) { %>
+              <tr<%= s.is_active ? '' : ' style="color:var(--ink-faint)"' %>>
+                <form method="post" action="/admin/students/<%= s.id %>" id="stu-<%= s.id %>"></form>
+                <td><input type="text" name="admission_no" value="<%= s.admission_no || '' %>" form="stu-<%= s.id %>" class="tnum"></td>
+                <td><input type="text" name="full_name" value="<%= s.full_name %>" form="stu-<%= s.id %>"></td>
+                <td>
+                  <select name="class_id" form="stu-<%= s.id %>">
+                    <option value="">—</option>
+                    <% classes.forEach(function (c) { %>
+                      <option value="<%= c.id %>" <%= s.class_id === c.id ? 'selected' : '' %>><%= formatClassLabel(c) %></option>
+                    <% }) %>
+                  </select>
+                </td>
+                <td><input type="text" name="roll_no" value="<%= s.roll_no || '' %>" form="stu-<%= s.id %>"></td>
+                <td><input type="text" name="gender" value="<%= s.gender || '' %>" form="stu-<%= s.id %>"></td>
+                <td class="mid">
+                  <input type="checkbox" name="is_active" <%= s.is_active ? 'checked' : '' %>
+                         form="stu-<%= s.id %>" style="width:auto" aria-label="Active">
+                </td>
+                <td class="nowrap" style="text-align:right">
+                  <button class="btn btn-ghost btn-sm" type="submit" form="stu-<%= s.id %>">Save</button>
+                  <form method="post" action="/admin/students/<%= s.id %>/delete" style="display:inline"
+                        onsubmit="return confirm('Remove <%= s.full_name.replace(/'/g, "\\'") %>?')">
+                    <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+                  </form>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <% if (pageCount > 1) { %>
+        <div class="card-foot">
+          <div class="row-between">
+            <span class="text-sm muted">Page <%= page %> of <%= pageCount %></span>
+            <div class="btn-row">
+              <%
+                var base = '/admin/students?year=' + year.id
+                  + '&class=' + encodeURIComponent(filters.class)
+                  + '&q=' + encodeURIComponent(filters.q)
+                  + (filters.inactive === 'on' ? '&inactive=on' : '');
+              %>
+              <% if (page > 1) { %><a class="btn btn-ghost btn-sm" href="<%= base %>&page=<%= page - 1 %>">Previous</a><% } %>
+              <% if (page < pageCount) { %><a class="btn btn-ghost btn-sm" href="<%= base %>&page=<%= page + 1 %>">Next</a><% } %>
+            </div>
+          </div>
+        </div>
+      <% } %>
+    <% } %>
+  </div>
+
+<% } %>

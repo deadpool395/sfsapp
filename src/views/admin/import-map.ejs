@@ -1,0 +1,174 @@
+<%
+  var columns = staged.parsed.columns;
+  var rowCount = staged.parsed.rows.length;
+  var mappedFields = Object.values(mapping);
+  var hasName = mappedFields.indexOf('full_name') !== -1;
+  var newClasses = classes.filter(function (c) { return !c.exists; });
+%>
+
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Step 2 of 3 &middot; <%= staged.filename %></div>
+    <h1>Check the column mapping</h1>
+    <p class="lede">
+      <strong><%= rowCount.toLocaleString('en-IN') %></strong> data rows found in sheet
+      "<%= staged.parsed.sheetName %>". Nothing is saved until you press Import.
+    </p>
+  </div>
+  <a class="btn btn-ghost" href="/admin/students/import">Start over</a>
+</div>
+
+<% if (!hasName) { %>
+  <div class="notice notice-error" role="alert">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+    </svg>
+    <div><strong>Map a column to Student Name.</strong> That is the only required field.</div>
+  </div>
+<% } %>
+
+<form method="post" action="/admin/students/import/<%= token %>/preview" id="mapform">
+  <div class="card card-flush mb-6">
+    <div class="card-head">
+      <h3 style="margin:0">Columns found in your file</h3>
+      <button class="btn btn-ghost btn-sm" type="submit">Refresh preview</button>
+    </div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr><th style="width:4rem">Col</th><th style="width:16rem">Heading in your file</th>
+            <th style="width:18rem">Import as</th><th>First values</th></tr>
+        </thead>
+        <tbody>
+          <% columns.forEach(function (col, i) { %>
+            <tr>
+              <td class="mid"><strong><%= String.fromCharCode(65 + (i % 26)) %></strong></td>
+              <td><%= col || '(no heading)' %></td>
+              <td>
+                <select name="col_<%= i %>">
+                  <option value="">— ignore (kept as extra detail) —</option>
+                  <% fields.forEach(function (f) { %>
+                    <option value="<%= f.key %>" <%= mapping[i] === f.key ? 'selected' : '' %>>
+                      <%= f.label %><%= f.required ? ' *' : '' %>
+                    </option>
+                  <% }) %>
+                </select>
+              </td>
+              <td class="text-xs muted">
+                <%= staged.parsed.rows.slice(0, 3).map(function (r) { return r[i] || '—'; }).join('  ·  ') %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-foot text-xs muted">
+      Columns left as "ignore" are not lost — they are stored against each student as extra detail.
+    </div>
+  </div>
+</form>
+
+<div class="card card-flush mb-6">
+  <div class="card-head">
+    <h3 style="margin:0">Preview — first <%= preview.length %> rows</h3>
+    <span class="text-xs muted">This is exactly how the rows will be read.</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Name</th><th>Adm. No.</th><th>Class</th><th>Division</th><th>Roll</th><th>Gender</th><th>DOB</th><th>Extra</th></tr>
+      </thead>
+      <tbody>
+        <% preview.forEach(function (p) { %>
+          <tr>
+            <td class="row-name"><%= p.full_name || '—' %>
+              <% if (!p.full_name) { %><span class="badge badge-danger">will skip</span><% } %>
+            </td>
+            <td class="tnum"><%= p.admission_no || '—' %></td>
+            <td><strong><%= p.class_name || '—' %></strong></td>
+            <td><%= p.division || '—' %></td>
+            <td><%= p.roll_no || '—' %></td>
+            <td><%= p.gender || '—' %></td>
+            <td><%= p.dob || '—' %></td>
+            <td class="text-xs muted">
+              <%= Object.keys(p.extra).length ? Object.keys(p.extra).map(function (k) { return k + '=' + p.extra[k]; }).join(', ') : '—' %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="grid grid-top" style="grid-template-columns:minmax(300px,1fr) minmax(320px,1.1fr)">
+
+  <div class="card">
+    <h3>Classes in this file</h3>
+    <p class="muted text-sm" style="margin-top:var(--space-2)">
+      <%= classes.length %> distinct classes &middot;
+      <strong><%= newClasses.length %></strong> not yet in <%= year.name %>
+    </p>
+    <div style="max-height:260px;overflow-y:auto;margin-top:var(--space-2)">
+      <table class="data">
+        <tbody>
+          <% classes.forEach(function (c) { %>
+            <tr>
+              <td><strong><%= c.label %></strong></td>
+              <td class="num tnum"><%= c.count %></td>
+              <td class="mid">
+                <% if (c.exists) { %><span class="badge badge-neutral">exists</span>
+                <% } else { %><span class="badge badge-accent">new</span><% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card card-floating">
+    <h3>Import <%= rowCount.toLocaleString('en-IN') %> rows into <%= year.name %></h3>
+
+    <form method="post" action="/admin/students/import/<%= token %>/commit" class="mt-4"
+          onsubmit="return confirm('Import <%= rowCount %> rows into <%= year.name %>?');">
+      <% columns.forEach(function (col, i) { %>
+        <input type="hidden" name="col_<%= i %>" value="<%= mapping[i] || '' %>">
+      <% }) %>
+
+      <label class="row" style="align-items:flex-start;gap:var(--space-3);margin-bottom:var(--space-4)">
+        <input type="checkbox" name="create_classes" checked style="width:auto;margin-top:5px">
+        <span>
+          <strong>Create the <%= newClasses.length %> missing classes</strong>
+          <span class="hint" style="margin-top:2px">
+            Unchecked, rows whose class does not already exist are skipped.
+          </span>
+        </span>
+      </label>
+
+      <label class="row" style="align-items:flex-start;gap:var(--space-3);margin-bottom:var(--space-4)">
+        <input type="checkbox" name="deactivate_missing" style="width:auto;margin-top:5px">
+        <span>
+          <strong>Mark students not in this file as inactive</strong>
+          <span class="hint" style="margin-top:2px">
+            Use only when this file is the complete roll for <%= year.name %>. Marks are never deleted.
+          </span>
+        </span>
+      </label>
+
+      <div class="notice notice-info" style="margin-bottom:var(--space-4)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 16v-5m0-3h.01"/>
+        </svg>
+        <div>
+          Students are matched on <strong>admission number</strong> within <%= year.name %>, so re-importing the
+          same file updates records instead of duplicating them.
+        </div>
+      </div>
+
+      <button class="btn btn-primary" type="submit" style="width:100%" <%= hasName ? '' : 'disabled' %>>
+        Import <%= rowCount.toLocaleString('en-IN') %> rows
+      </button>
+    </form>
+  </div>
+
+</div>

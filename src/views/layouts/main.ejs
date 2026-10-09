@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title ? `${title} · ${schoolName}` : schoolName %></title>
+  <meta name="robots" content="noindex, nofollow">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Utilities only — preflight is disabled so it cannot reset app.css.
+    tailwind.config = {
+      corePlugins: { preflight: false },
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f1f7f5', 100: '#dcebe7', 200: '#b9d7d0', 300: '#8dbcb1',
+              400: '#5e9b8d', 500: '#3d7e6f', 600: '#2c6559', 700: '#245247',
+              800: '#1d4139', 900: '#16302b', 950: '#0d1e1b',
+            },
+            accent: {
+              100: '#f8ebd2', 200: '#f0d6a3', 300: '#e5bb6e',
+              400: '#d9a149', 500: '#c4842f', 600: '#a66825', 700: '#85501f',
+            },
+          },
+          fontFamily: {
+            display: ['Montserrat', 'system-ui', 'sans-serif'],
+            sans: ['Montserrat', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="icon" href="/logo/logo.png">
+</head>
+<body class="<%= ['/login', '/select-teacher'].indexOf(currentPath) !== -1 ? 'auth-page' : '' %>">
+
+  <%- include('../partials/masthead') %>
+
+  <main>
+    <div class="shell <%= typeof wide !== 'undefined' && wide ? 'shell-wide' : '' %>">
+      <%- include('../partials/flash') %>
+      <%- body %>
+    </div>
+  </main>
+
+  <%- include('../partials/footer') %>
+
+  <%# `layout extractScripts` pulls each view's inline <script> out of the body;
+      they must be emitted here or they are dropped entirely. %>
+  <%- typeof script !== 'undefined' && script ? script : '' %>
+</body>
+</html>

@@ -1,0 +1,13 @@
+-node js application
+-postgres 18 database running locally with password: 123
+-student data can be uploaded to database in excel by admins these data are stored in academic year wise like 2026-2027.
+-admin portal to manage teachers, class, subjects and students.
+-need a common login and password for teachers.
+-when teachers are logged in they are asked to select the teacher name from dropdown.
+-on the dashboard they can see these buttons "sfs dropbox" hyperlink- "https://drop-box-y81x.onrender.com"
+-another button for "sfs mark submission system" hyperlink- "https://sfs-marks-submission.onrender.com"
+-another button to "Assignment and Unit Test mark Submission"- in this module teachers can select the academic year 2026-2027, then class with division, then teachers will choose respective terms.3 terms are there term1, term2, and term3 here they will enter unit test and assignment marks of the students of that class and the data is submitted, teachers can view the marks entered, can take a report in excel and pdf if they want.
+-admins also can we see which teacher entered the marks, assignment and unit test marks of students of each class, can take the report in pdf or excel if needed.
+-any repeated mark entry cannot be permited for teachers, they should contact admins to update mark entry of a child.
+-use effective design skills
+-add a footer in all pages powered by Daniel as hyperlink - "https://personal-website-w63n.onrender.com"

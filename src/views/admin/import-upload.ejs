@@ -1,0 +1,100 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Students</div>
+    <h1>Import from Excel</h1>
+    <p class="lede">
+      Upload a spreadsheet of students. You will see the detected columns and a preview before anything is saved.
+    </p>
+  </div>
+  <a class="btn btn-ghost" href="/admin/students">Back to students</a>
+</div>
+
+<div class="grid grid-top" style="grid-template-columns:minmax(320px,1.2fr) minmax(280px,1fr)">
+
+  <div class="card card-floating">
+    <h3>Choose a file</h3>
+    <% if (!years.length) { %>
+      <div class="notice notice-warn mt-4">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+        </svg>
+        <div>Create an academic year first — students are stored per year.</div>
+      </div>
+      <a class="btn btn-primary mt-4" href="/admin/years">Academic years</a>
+    <% } else { %>
+      <form method="post" action="/admin/students/import" enctype="multipart/form-data" class="mt-4">
+        <label class="field">
+          <span>Import into academic year</span>
+          <select name="year" required>
+            <% years.forEach(function (y) { %>
+              <option value="<%= y.id %>" <%= year && year.id === y.id ? 'selected' : '' %>>
+                <%= y.name %><%= y.is_active ? ' (current)' : '' %>
+              </option>
+            <% }) %>
+          </select>
+          <span class="hint">Students are always stored against one academic year.</span>
+        </label>
+
+        <label class="field">
+          <span>Excel file (.xlsx)</span>
+          <input type="file" name="file" accept=".xlsx,.xlsm" required>
+          <span class="hint">Up to 15 MB. The first worksheet is used.</span>
+        </label>
+
+        <button class="btn btn-primary" type="submit">
+          Upload &amp; preview
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6"/>
+          </svg>
+        </button>
+      </form>
+    <% } %>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h3>Expected columns</h3>
+      <p class="muted text-sm" style="margin-top:var(--space-2)">
+        Any layout works — you map the columns on the next screen. The school's own sheet looks like this:
+      </p>
+      <div class="table-wrap mt-2">
+        <table class="data">
+          <thead><tr><th>SNo</th><th>Name</th><th>Admission Number</th><th>Class</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>AARON SARATH</td><td>265968</td><td>LKG A</td></tr>
+            <tr><td>2</td><td>ANAND KRISHNA</td><td>265971</td><td>XI Science</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">
+        <strong>Class</strong> may combine class and division ("LKG A", "XI Science") — it is split automatically.
+        <strong>Admission Number</strong> is used to match students, so re-importing updates rather than duplicates.
+      </p>
+      <a class="btn btn-ghost btn-sm mt-2" href="/admin/students/template">Download a blank template</a>
+    </div>
+
+    <% if (batches.length) { %>
+      <div class="card">
+        <h3>Recent imports</h3>
+        <div class="table-wrap mt-2">
+          <table class="data">
+            <thead><tr><th>File</th><th>Year</th><th class="mid">Added</th><th class="mid">Updated</th><th class="mid">Skipped</th><th>When</th></tr></thead>
+            <tbody>
+              <% batches.forEach(function (b) { %>
+                <tr>
+                  <td class="text-sm"><%= b.filename || '—' %></td>
+                  <td class="text-sm"><%= b.year_name %></td>
+                  <td class="mid tnum"><%= b.inserted %></td>
+                  <td class="mid tnum"><%= b.updated %></td>
+                  <td class="mid tnum"><%= b.skipped %></td>
+                  <td class="text-xs muted"><%= fmtDateTime(b.created_at) %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% } %>
+  </div>
+
+</div>

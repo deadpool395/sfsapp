@@ -1,0 +1,57 @@
+<%
+  var s = data.submission;
+  var secLabel = componentLabel(s.secondary_component);
+%>
+<div class="card card-flush">
+  <div class="card-head">
+    <div>
+      <h3 style="margin:0">Marks</h3>
+      <div class="text-xs muted">
+        Unit test out of <%= fmtMark(data.unitMax) %> &middot;
+        <%= secLabel %> out of <%= fmtMark(data.secMax) %> &middot;
+        AB = absent
+      </div>
+    </div>
+    <% if (typeof actions !== 'undefined') { %><div class="btn-row no-print"><%- actions %></div><% } %>
+  </div>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th class="mid" style="width:3.5rem">Sl.</th>
+          <th class="mid" style="width:4.5rem">Roll</th>
+          <th style="width:8rem">Adm. No.</th>
+          <th>Student Name</th>
+          <th class="mid">Unit Test<br><span class="text-xs" style="text-transform:none;letter-spacing:0">/ <%= fmtMark(data.unitMax) %></span></th>
+          <th class="mid"><%= secLabel %><br><span class="text-xs" style="text-transform:none;letter-spacing:0">/ <%= fmtMark(data.secMax) %></span></th>
+          <th class="mid">Total<br><span class="text-xs" style="text-transform:none;letter-spacing:0">/ <%= fmtMark(data.totalMax) %></span></th>
+          <th class="mid">%</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% data.students.forEach(function (st) { %>
+          <tr<%= st.absent ? ' style="color:var(--ink-faint)"' : '' %>>
+            <td class="mid tnum"><%= st.index %></td>
+            <td class="mid tnum"><%= st.rollNo || '—' %></td>
+            <td class="tnum"><%= st.admissionNo || '—' %></td>
+            <td class="row-name"><%= st.name %></td>
+            <td class="mid tnum"><%= st.unitTest === null ? 'AB' : fmtMark(st.unitTest) %></td>
+            <td class="mid tnum"><%= st.secondary === null ? 'AB' : fmtMark(st.secondary) %></td>
+            <td class="mid tnum"><strong><%= st.total === null ? '—' : fmtMark(st.total) %></strong></td>
+            <td class="mid tnum"><%= st.percent === null ? '—' : st.percent.toFixed(1) + '%' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4">Total — <%= data.totals.counted %> assessed, <%= data.totals.absent %> absent</td>
+          <td class="mid tnum"><%= data.totals.unitTest === null ? '—' : fmtMark(data.totals.unitTest) %></td>
+          <td class="mid tnum"><%= data.totals.secondary === null ? '—' : fmtMark(data.totals.secondary) %></td>
+          <td class="mid tnum"><%= data.totals.total === null ? '—' : fmtMark(data.totals.total) %></td>
+          <td class="mid tnum"><%= data.totals.averagePercent === null ? '—' : data.totals.averagePercent.toFixed(1) + '%' %></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>

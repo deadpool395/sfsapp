@@ -1,0 +1,44 @@
+<div class="auth-wrap">
+  <div class="auth-card card card-floating">
+
+    <div style="text-align:center;margin-bottom:var(--space-6)">
+      <img src="/logo/logo.png" alt="<%= schoolName %> crest" class="auth-crest">
+      <div class="eyebrow mt-4">Step 2 of 2</div>
+      <h1>Select your name</h1>
+      <p class="muted text-sm mt-2 mb-0">
+        Marks you submit are recorded against the name you choose here.
+      </p>
+    </div>
+
+    <% if (!teachers.length) { %>
+      <div class="notice notice-warn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+        </svg>
+        <div>No active teachers have been added yet. An administrator needs to add staff under
+          <strong>Teachers</strong> before marks can be entered.</div>
+      </div>
+      <form method="post" action="/logout"><button class="btn btn-ghost" type="submit" style="width:100%">Sign out</button></form>
+    <% } else { %>
+      <form method="post" action="/select-teacher">
+        <label class="field">
+          <span>Teacher name</span>
+          <select name="teacher_id" required autofocus>
+            <option value="" disabled <%= selectedId ? '' : 'selected' %>>Choose your name…</option>
+            <% teachers.forEach(function (t) { %>
+              <option value="<%= t.id %>" <%= String(selectedId) === String(t.id) ? 'selected' : '' %>><%= t.name %></option>
+            <% }) %>
+          </select>
+          <span class="hint"><%= teachers.length %> active <%= teachers.length === 1 ? 'teacher' : 'teachers' %></span>
+        </label>
+
+        <button class="btn btn-primary" type="submit" style="width:100%">Continue to dashboard</button>
+      </form>
+
+      <div class="mt-4" style="text-align:center">
+        <form method="post" action="/logout"><button class="btn btn-quiet btn-sm" type="submit">Not a teacher? Sign out</button></form>
+      </div>
+    <% } %>
+
+  </div>
+</div>

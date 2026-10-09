@@ -1,0 +1,30 @@
+<%
+  var s = data.submission;
+  var clsLabel = formatClassLabel({ name: s.class_name, division: s.class_division });
+%>
+<div class="pagehead">
+  <div>
+    <div class="eyebrow"><%= s.year_name %> &middot; <%= termLabel(s.term) %></div>
+    <h1><%= clsLabel %> — <%= s.subject_name %></h1>
+  </div>
+  <a class="btn btn-ghost" href="/teacher/marks">Choose another class</a>
+</div>
+
+<div class="notice notice-warn" role="alert">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>
+  </svg>
+  <div>
+    <strong>Marks have already been submitted for this class, subject and term.</strong><br>
+    Entered by <strong><%= s.teacher_name %></strong> on <%= fmtDateTime(s.submitted_at) %>.
+    Repeat entry is not permitted — please <strong>contact an administrator</strong> if a mark needs to be corrected.
+  </div>
+</div>
+
+<%- include('../partials/submission-meta') %>
+
+<%
+  var actions = '<a class="btn btn-ghost btn-sm" href="/teacher/marks/view/' + s.id + '/excel">Excel</a>'
+              + '<a class="btn btn-ghost btn-sm" href="/teacher/marks/view/' + s.id + '/pdf">PDF</a>';
+%>
+<%- include('../partials/marks-readonly', { data: data, actions: actions }) %>

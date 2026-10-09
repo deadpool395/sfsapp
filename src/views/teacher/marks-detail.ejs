@@ -1,0 +1,32 @@
+<%
+  var s = data.submission;
+  var clsLabel = formatClassLabel({ name: s.class_name, division: s.class_division });
+%>
+<div class="pagehead">
+  <div>
+    <div class="eyebrow"><%= s.year_name %> &middot; <%= termLabel(s.term) %></div>
+    <h1><%= clsLabel %> — <%= s.subject_name %></h1>
+    <p class="lede">
+      Submitted <%= fmtDateTime(s.submitted_at) %> by <%= s.teacher_name %><%= isMine ? ' (you)' : '' %>.
+      Locked against further entry — contact an administrator for corrections.
+    </p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-ghost" href="/teacher/marks/view">All my submissions</a>
+    <a class="btn btn-accent" href="/teacher/marks/view/<%= s.id %>/excel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+      </svg>
+      Excel
+    </a>
+    <a class="btn btn-ghost" href="/teacher/marks/view/<%= s.id %>/pdf">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>
+      </svg>
+      PDF
+    </a>
+  </div>
+</div>
+
+<%- include('../partials/submission-meta') %>
+<%- include('../partials/marks-readonly', { data: data }) %>

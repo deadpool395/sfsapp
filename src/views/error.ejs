@@ -1,0 +1,8 @@
+<div class="card card-floating" style="max-width:620px;margin:3rem auto;text-align:center">
+  <div class="eyebrow">Error <%= status %></div>
+  <h1><%= heading %></h1>
+  <p class="lede" style="margin-left:auto;margin-right:auto"><%= message %></p>
+  <div class="btn-row mt-6" style="justify-content:center">
+    <a class="btn btn-primary" href="<%= user ? (user.role === 'admin' ? '/admin' : '/teacher') : '/login' %>">Back to dashboard</a>
+  </div>
+</div>

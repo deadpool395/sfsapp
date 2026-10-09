@@ -1,0 +1,53 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Step 3 of 3 &middot; <%= filename %></div>
+    <h1>Import complete</h1>
+    <p class="lede"><%= stats.total.toLocaleString('en-IN') %> rows processed into <%= year.name %>.</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-primary" href="/admin/students?year=<%= year.id %>">View students</a>
+    <a class="btn btn-ghost" href="/admin/students/import">Import another file</a>
+  </div>
+</div>
+
+<div class="grid grid-4 mb-6">
+  <div class="stat"><div class="k">Added</div><div class="n tnum"><%= stats.inserted.toLocaleString('en-IN') %></div></div>
+  <div class="stat"><div class="k">Updated</div><div class="n tnum"><%= stats.updated.toLocaleString('en-IN') %></div></div>
+  <div class="stat"><div class="k">Skipped</div><div class="n tnum"><%= stats.skipped.toLocaleString('en-IN') %></div></div>
+  <div class="stat"><div class="k">Classes created</div><div class="n tnum"><%= stats.classesCreated %></div></div>
+</div>
+
+<% if (stats.deactivated) { %>
+  <div class="notice notice-warn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+    </svg>
+    <div><strong><%= stats.deactivated %></strong> student(s) were not in this file and have been marked inactive.</div>
+  </div>
+<% } %>
+
+<% if (!errors.length) { %>
+  <div class="notice notice-success">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5"/>
+    </svg>
+    <div>Every row imported cleanly, with no errors.</div>
+  </div>
+<% } else { %>
+  <div class="card card-flush">
+    <div class="card-head">
+      <h3 style="margin:0"><%= errors.length %> row<%= errors.length === 1 ? '' : 's' %> needed attention</h3>
+      <span class="text-xs muted">Everything else was imported.</span>
+    </div>
+    <div class="table-wrap" style="max-height:420px;overflow-y:auto">
+      <table class="data">
+        <thead><tr><th style="width:7rem">Sheet row</th><th>What happened</th></tr></thead>
+        <tbody>
+          <% errors.forEach(function (e) { %>
+            <tr><td class="mid tnum"><%= e.row %></td><td><%= e.message %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
