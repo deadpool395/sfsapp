@@ -74,21 +74,29 @@ A teacher picks **year → class → subject → term**, then fills a roster gri
   **Assignment** for most subjects and a **Practical** for Computer. This is a
   per-subject setting on Admin → Subjects, not a hardcoded subject name, so any
   subject can be switched to practical from a dropdown.
-- A blank box means **absent / not assessed** and is stored as NULL, which is
-  different from a zero.
+- **The two columns are recorded separately.** A teacher ticks the column they
+  have finished — assignment marks today, unit test weeks later — and only
+  ticked columns are saved. An unticked column stays open, and a column that
+  is already recorded is shown read-only beside the one being entered.
+- A blank box in a **recorded** column means **absent / not assessed** and is
+  stored as NULL, which is different from a zero. A column nobody has recorded
+  yet shows `—`, which is different again.
 - Marks are validated server-side against the maxima in Admin → Settings;
-  the form's values are never trusted.
+  the form's values are never trusted, and an unticked column's values are
+  ignored entirely.
 
-**Repeat entry is not possible.** A `UNIQUE (academic_year_id, class_id,
-subject_id, term)` index on `mark_submissions` enforces it in the database, so
-even a replayed POST cannot create a second submission. Teachers see a
-read-only view telling them to contact an administrator.
+**Repeat entry is not possible.** Each column is closed with a conditional
+`UPDATE … WHERE <component>_submitted_at IS NULL`, so the database — not the
+page — is what rejects a second attempt; a replayed POST matches no rows and
+changes nothing. Once both columns are recorded the teacher sees a read-only
+view telling them to contact an administrator.
 
 Admins can, from Admin → Marks:
 - see who entered what and when, filtered by year/class/subject/term/teacher,
 - **correct marks** — audited, with the old and new value of every changed cell,
-- **release** a submission, which deletes its marks so a teacher can re-enter
-  them; the removed values are preserved in the audit trail.
+- **release a single column**, which clears just that column's marks and
+  reopens it while the other column keeps its own; or release the whole
+  submission. Either way the removed values are preserved in the audit trail.
 
 Each submission **snapshots** its component type and both maxima at submission
 time, so later changing a subject's component or the default maxima never
@@ -98,6 +106,11 @@ reinterprets marks that were already recorded.
 Excel (`exceljs`) and PDF (`pdfkit`) exports are available to teachers for their
 own submissions and to admins for any submission, both built from one shared
 query so the two formats and the on-screen table always agree.
+
+A report pulled mid-term is explicit about what it contains: a column that has
+not been recorded reads *not yet entered*, its cells read `—`, and the Total is
+out of the recorded maximum only — so nobody is scored out of a maximum that
+has not been assessed. `npm run report:preview -- --partial` renders that case.
 
 ## Scripts
 

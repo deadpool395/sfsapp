@@ -23,20 +23,55 @@
 
 <div class="grid grid-top mt-6" style="grid-template-columns:minmax(300px,1fr) minmax(320px,1fr)">
 
+  <%
+    var cols = [
+      { key: 'unit_test', label: 'Unit Test', st: data.state.unit_test },
+      { key: 'secondary', label: componentLabel(s.secondary_component), st: data.state.secondary }
+    ];
+  %>
   <div class="card">
     <h3>Release for re-entry</h3>
     <p class="muted text-sm" style="margin-top:var(--space-2)">
-      Teachers cannot overwrite a submission. Releasing <strong>deletes these <%= data.students.length %> mark
-      records</strong> and reopens <%= clsLabel %> — <%= s.subject_name %> — <%= termLabel(s.term) %> so a teacher
-      can enter it again. The deleted values are preserved in the audit trail below.
+      Teachers cannot overwrite a column once it is recorded. Releasing clears that column's marks and
+      reopens it for <%= clsLabel %> — <%= s.subject_name %> — <%= termLabel(s.term) %>.
+      Each column is released on its own, so reopening one leaves the other intact.
     </p>
     <p class="hint">To fix one or two marks, use <strong>Correct marks</strong> instead — it keeps the record intact.</p>
 
-    <form method="post" action="/admin/marks/<%= s.id %>/release" class="mt-4"
-          onsubmit="return releaseConfirm(this)">
-      <input type="hidden" name="confirm" value="">
-      <button class="btn btn-danger" type="submit">Release submission</button>
-    </form>
+    <div class="stack mt-4">
+      <% cols.forEach(function (c) { %>
+        <div class="row-between" style="padding:var(--space-3);border:1px solid var(--hairline);border-radius:var(--radius-md)">
+          <div>
+            <strong><%= c.label %></strong>
+            <% if (c.st.recorded) { %>
+              <span class="badge badge-brand">recorded</span>
+              <div class="text-xs muted"><%= c.st.teacherName || '—' %> &middot; <%= fmtDateTime(c.st.submittedAt) %> &middot; out of <%= fmtMark(c.st.max) %></div>
+            <% } else { %>
+              <span class="badge badge-neutral">open</span>
+              <div class="text-xs muted">Not entered yet — a teacher can enter it now.</div>
+            <% } %>
+          </div>
+          <% if (c.st.recorded) { %>
+            <form method="post" action="/admin/marks/<%= s.id %>/release/<%= c.key %>"
+                  onsubmit="return releaseConfirm(this, '<%= c.label %>')">
+              <input type="hidden" name="confirm" value="">
+              <button class="btn btn-danger btn-sm" type="submit">Release</button>
+            </form>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+
+    <% if (data.state.anyRecorded) { %>
+      <div class="mt-4" style="padding-top:var(--space-3);border-top:1px solid var(--hairline)">
+        <form method="post" action="/admin/marks/<%= s.id %>/release"
+              onsubmit="return releaseConfirm(this, 'the whole submission')">
+          <input type="hidden" name="confirm" value="">
+          <button class="btn btn-danger btn-sm" type="submit">Release everything</button>
+          <span class="hint" style="display:inline;margin-left:var(--space-2)">Deletes both columns and the submission record.</span>
+        </form>
+      </div>
+    <% } %>
   </div>
 
   <div class="card">
@@ -80,9 +115,9 @@
 </div>
 
 <script>
-  function releaseConfirm(form) {
+  function releaseConfirm(form, what) {
     var typed = prompt(
-      'Releasing deletes the marks currently recorded for this class, subject and term\n' +
+      'Releasing deletes the marks currently recorded for ' + (what || 'this submission') + '\n' +
       'so that a teacher can enter them again.\n\n' +
       'Type RELEASE to confirm:'
     );

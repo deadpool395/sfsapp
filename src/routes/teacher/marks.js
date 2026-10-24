@@ -12,7 +12,7 @@ const express = require('express');
 const marksService = require('../../services/marks');
 const reports = require('../../services/reports');
 const settingsStore = require('../../lib/settings');
-const { parseMarkRows, rawValues } = require('../../lib/markInput');
+const { parseComponentRows, rawValues } = require('../../lib/markInput');
 const { isTerm, termLabel, componentLabel } = require('../../lib/terms');
 const { formatClassLabel } = require('../../lib/classes');
 
@@ -57,6 +57,50 @@ async function resolveSelection(query) {
   return { yearId, classId, subjectId, term, cls, subject };
 }
 
+/**
+ * Everything the entry sheet needs to render a mixed open/locked state.
+ *
+ * A recorded column keeps the maximum it was recorded under; an open one takes
+ * the current default from settings. Already-recorded marks are passed through
+ * so the locked column can be shown read-only next to the one being entered.
+ */
+async function entryViewModel({ sel, existing, state }) {
+  const roster = await marksService.getRoster(sel.classId);
+  const secondaryComponent = existing ? existing.secondary_component : sel.subject.secondary_component;
+  const defaults = await settingsStore.maxMarks();
+  const defaultSecondaryMax = await settingsStore.secondaryMaxFor(secondaryComponent);
+
+  const recorded = {};
+  if (existing) {
+    for (const m of await marksService.getSubmissionMarks(existing.id)) {
+      recorded[m.student_id] = { unit_test: m.unit_test_mark, secondary: m.secondary_mark };
+    }
+  }
+
+  const columns = [
+    {
+      key: 'unit_test',
+      prefix: 'ut',
+      label: 'Unit Test',
+      open: state.unit_test.open,
+      max: state.unit_test.recorded ? state.unit_test.max : defaults.unitTest,
+      teacherName: state.unit_test.teacherName,
+      submittedAt: state.unit_test.submittedAt,
+    },
+    {
+      key: 'secondary',
+      prefix: 'sec',
+      label: componentLabel(secondaryComponent),
+      open: state.secondary.open,
+      max: state.secondary.recorded ? state.secondary.max : defaultSecondaryMax,
+      teacherName: state.secondary.teacherName,
+      submittedAt: state.secondary.submittedAt,
+    },
+  ];
+
+  return { sel, roster, columns, state, recorded, secondaryComponent };
+}
+
 /* ------------------------------------------------------------- selection -- */
 
 router.get('/', async (req, res, next) => {
@@ -89,31 +133,26 @@ router.get('/entry', async (req, res, next) => {
       return res.redirect('/teacher/marks');
     }
 
-    // Already submitted? Show it read-only with the contact-admin notice.
     const existing = await marksService.findSubmission(sel);
-    if (existing) {
+    const state = marksService.componentState(existing);
+
+    // Only when BOTH components are closed is there nothing left to do here.
+    if (existing && state.allRecorded) {
       const data = marksService.buildReportData(existing, await marksService.getSubmissionMarks(existing.id));
       return res.render('teacher/marks-locked', {
         title: 'Already submitted',
         wide: true,
         data,
-        isMine: existing.teacher_id === req.session.user.teacherId,
+        isMine:
+          state.unit_test.teacherId === req.session.user.teacherId ||
+          state.secondary.teacherId === req.session.user.teacherId,
       });
     }
-
-    const roster = await marksService.getRoster(sel.classId);
-    const secondaryMax = await settingsStore.secondaryMaxFor(sel.subject.secondary_component);
-    const { unitTest: unitTestMax } = await settingsStore.maxMarks();
 
     return res.render('teacher/marks-entry', {
       title: 'Enter Marks',
       wide: true,
-      sel,
-      roster,
-      unitTestMax,
-      secondaryMax,
-      secondaryComponent: sel.subject.secondary_component,
-      secondaryLabel: componentLabel(sel.subject.secondary_component),
+      ...(await entryViewModel({ sel, existing, state })),
       values: {},
       errors: [],
     });
@@ -130,67 +169,94 @@ router.post('/entry', async (req, res, next) => {
       return res.redirect('/teacher/marks');
     }
 
-    const roster = await marksService.getRoster(sel.classId);
-    const secondaryComponent = sel.subject.secondary_component;
-    const secondaryLabel = componentLabel(secondaryComponent);
+    const existing = await marksService.findSubmission(sel);
+    const state = marksService.componentState(existing);
+    const vm = await entryViewModel({ sel, existing, state });
 
-    // Maxima come from settings, not the form, so they cannot be tampered with.
-    const { unitTest: unitTestMax } = await settingsStore.maxMarks();
-    const secondaryMax = await settingsStore.secondaryMaxFor(secondaryComponent);
+    // A column is recorded only if the teacher ticked it, and only if it is
+    // still open — so an unticked column is left untouched for another day.
+    const attempted = vm.columns.filter((col) => req.body[`record_${col.key}`] === 'on');
+    const ticked = attempted.filter((col) => col.open);
+    const alreadyClosed = attempted.filter((col) => !col.open);
 
-    const { rows, errors, entered } = parseMarkRows({
-      body: req.body,
-      roster,
-      unitMax: unitTestMax,
-      secMax: secondaryMax,
-      secondaryLabel,
-    });
+    const errors = [];
+    const components = {};
 
-    if (!entered) {
-      errors.push('No marks were entered. Fill in at least one student before submitting.');
+    // Ticking a column that closed since the page was opened is a different
+    // problem from ticking nothing, and deserves a different explanation.
+    for (const col of alreadyClosed) {
+      errors.push(
+        `${col.label} has already been recorded for this class, subject and term` +
+          `${col.teacherName ? ` by ${col.teacherName}` : ''}. ` +
+          'Contact an administrator if it needs to change.'
+      );
     }
 
-    const rerender = () =>
-      res.status(400).render('teacher/marks-entry', {
+    if (!ticked.length && !alreadyClosed.length) {
+      errors.push(
+        'Tick the column you are recording. Marks are only saved for a column you tick, ' +
+          'so you can enter the other one another day.'
+      );
+    }
+
+    for (const col of ticked) {
+      // Maxima come from settings, never from the form.
+      const parsed = parseComponentRows({
+        body: req.body,
+        roster: vm.roster,
+        component: col.key,
+        max: col.max,
+        label: col.label,
+      });
+      errors.push(...parsed.errors);
+      components[col.key] = { max: col.max, rows: parsed.rows };
+    }
+
+    if (errors.length) {
+      return res.status(400).render('teacher/marks-entry', {
         title: 'Enter Marks',
         wide: true,
-        sel,
-        roster,
-        unitTestMax,
-        secondaryMax,
-        secondaryComponent,
-        secondaryLabel,
-        values: rawValues({ body: req.body, roster }),
+        ...vm,
+        values: rawValues({ body: req.body, roster: vm.roster }),
+        ticked: ticked.map((c) => c.key),
         errors,
       });
-
-    if (errors.length) return rerender();
+    }
 
     try {
-      const submission = await marksService.createSubmission({
+      const submission = await marksService.recordComponents({
         yearId: sel.yearId,
         classId: sel.classId,
         subjectId: sel.subjectId,
         term: sel.term,
         teacherId: req.session.user.teacherId,
-        unitTestMax,
-        secondaryMax,
-        secondaryComponent,
-        rows,
+        secondaryComponent: vm.secondaryComponent,
+        components,
         actor: req.session.user,
       });
 
+      const names = ticked.map((c) => c.label).join(' and ');
+      const after = marksService.componentState(submission);
+      const stillOpen = marksService.COMPONENTS
+        .filter((k) => after[k].open)
+        .map((k) => vm.columns.find((c) => c.key === k).label);
+
       req.flash(
         'success',
-        `Marks submitted for <strong>${formatClassLabel(sel.cls)} — ${sel.subject.name} — ${termLabel(sel.term)}</strong>. ` +
-          'This class, subject and term is now locked; contact an administrator if a correction is needed.'
+        `<strong>${names}</strong> recorded for ${formatClassLabel(sel.cls)} — ${sel.subject.name} — ` +
+          `${termLabel(sel.term)} and now locked. ` +
+          (stillOpen.length
+            ? `<strong>${stillOpen.join(' and ')}</strong> is still open — come back and enter it whenever you have the marks.`
+            : 'Contact an administrator if a correction is needed.')
       );
       return res.redirect(`/teacher/marks/view/${submission.id}`);
     } catch (err) {
-      if (err.code === 'DUPLICATE') {
-        // Someone submitted the same combination in the meantime — the DB
-        // unique index caught it, so re-render as the locked view.
-        req.flash('error', err.message);
+      if (err.code === 'COMPONENT_TAKEN') {
+        // The database refused it: someone recorded that column first.
+        const names = (err.components || [])
+          .map((k) => vm.columns.find((c) => c.key === k)?.label || k)
+          .join(' and ');
+        req.flash('error', `${names} has already been recorded for this class, subject and term. Nothing was saved.`);
         return res.redirect(
           `/teacher/marks/entry?year=${sel.yearId}&class=${sel.classId}&subject=${sel.subjectId}&term=${sel.term}`
         );

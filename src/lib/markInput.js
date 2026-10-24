@@ -27,6 +27,32 @@ function parseCell(raw, max, label, studentName, errors) {
   return Math.round(value * 100) / 100;
 }
 
+/** Form field prefix for each component. */
+const FIELD_PREFIX = { unit_test: 'ut', secondary: 'sec' };
+
+function fieldName(component, studentId) {
+  return `${FIELD_PREFIX[component]}_${studentId}`;
+}
+
+/**
+ * Read one component's column for every student on the roster.
+ *
+ * Used by the teacher entry sheet, where the unit test and the assignment or
+ * practical are recorded at different times and only the ticked column is
+ * saved. Iterating the roster rather than the posted body means a tampered
+ * form cannot introduce marks for students who are not in the class.
+ */
+function parseComponentRows({ body, roster, component, max, label }) {
+  const errors = [];
+  const rows = roster.map((student) => ({
+    studentId: student.id,
+    value: parseCell(body[fieldName(component, student.id)], max, `${label.toLowerCase()} mark`, student.full_name, errors),
+  }));
+
+  const entered = rows.filter((r) => r.value !== null).length;
+  return { rows, errors, entered };
+}
+
 /**
  * Read `ut_<id>` / `sec_<id>` fields for every student on the roster.
  *
@@ -60,4 +86,4 @@ function rawValues({ body, roster }) {
   return out;
 }
 
-module.exports = { parseMarkRows, rawValues, parseCell };
+module.exports = { parseMarkRows, parseComponentRows, rawValues, parseCell, fieldName, FIELD_PREFIX };

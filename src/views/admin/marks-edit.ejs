@@ -78,16 +78,20 @@
               <td class="tnum"><%= st.admissionNo || '—' %></td>
               <td class="row-name"><%= st.name %></td>
               <td class="mid">
-                <input class="entry-input js-mark" type="number" inputmode="decimal"
-                       name="ut_<%= st.studentId %>" value="<%= utVal %>"
-                       min="0" max="<%= data.unitMax %>" step="0.25" data-max="<%= data.unitMax %>"
-                       aria-label="Unit test mark for <%= st.name %>">
+                <% if (data.state.unit_test.recorded) { %>
+                  <input class="entry-input js-mark" type="number" inputmode="decimal"
+                         name="ut_<%= st.studentId %>" value="<%= utVal %>"
+                         min="0" max="<%= data.unitMax %>" step="0.25" data-max="<%= data.unitMax %>"
+                         aria-label="Unit test mark for <%= st.name %>">
+                <% } else { %><span class="muted">—</span><% } %>
               </td>
               <td class="mid">
-                <input class="entry-input js-mark" type="number" inputmode="decimal"
-                       name="sec_<%= st.studentId %>" value="<%= secVal %>"
-                       min="0" max="<%= data.secMax %>" step="0.25" data-max="<%= data.secMax %>"
-                       aria-label="<%= secondaryLabel %> mark for <%= st.name %>">
+                <% if (data.state.secondary.recorded) { %>
+                  <input class="entry-input js-mark" type="number" inputmode="decimal"
+                         name="sec_<%= st.studentId %>" value="<%= secVal %>"
+                         min="0" max="<%= data.secMax %>" step="0.25" data-max="<%= data.secMax %>"
+                         aria-label="<%= secondaryLabel %> mark for <%= st.name %>">
+                <% } else { %><span class="muted">—</span><% } %>
               </td>
               <td class="mid tnum js-total" style="font-weight:600">—</td>
             </tr>

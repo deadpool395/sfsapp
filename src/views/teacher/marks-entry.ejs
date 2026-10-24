@@ -1,10 +1,23 @@
+<%
+  var openCols   = columns.filter(function (c) { return c.open; });
+  var lockedCols = columns.filter(function (c) { return !c.open; });
+  var preTicked  = typeof ticked !== 'undefined' ? ticked : openCols.map(function (c) { return c.key; });
+  function valueKey(col) { return col.key === 'unit_test' ? 'unitTest' : 'secondary'; }
+%>
+
 <div class="pagehead">
   <div>
     <div class="eyebrow"><%= sel.cls.year_name %> &middot; <%= termLabel(sel.term) %></div>
     <h1><%= formatClassLabel(sel.cls) %> — <%= sel.subject.name %></h1>
     <p class="lede">
-      Enter the unit test mark and the <strong><%= secondaryLabel.toLowerCase() %></strong> mark for each student.
-      Leave a box blank for a student who was absent or not assessed.
+      <% if (lockedCols.length) { %>
+        <strong><%= lockedCols.map(function (c) { return c.label; }).join(' and ') %></strong>
+        <%= lockedCols.length === 1 ? 'is' : 'are' %> already recorded and shown for reference.
+        Enter <strong><%= openCols.map(function (c) { return c.label; }).join(' and ') %></strong> below.
+      <% } else { %>
+        Enter the marks you have now. Each column is recorded separately, so you can
+        come back for the other one another day.
+      <% } %>
     </p>
   </div>
   <a class="btn btn-ghost" href="/teacher/marks?year=<%= sel.yearId %>&class=<%= sel.classId %>&subject=<%= sel.subjectId %>&term=<%= sel.term %>">Change selection</a>
@@ -17,8 +30,9 @@
     <circle cx="12" cy="12" r="9"/><path d="M12 16v-5m0-3h.01"/>
   </svg>
   <div>
-    Marks can be submitted <strong>once</strong> for this class, subject and term. After you submit, the sheet
-    locks — an administrator must make any later corrections. Check your entries before submitting.
+    Only the column you <strong>tick</strong> is saved and locked. Leave a column unticked and
+    it stays open, so unit test and <%= componentLabel(secondaryComponent).toLowerCase() %> marks
+    can be entered weeks apart. A locked column can only be changed by an administrator.
   </div>
 </div>
 
@@ -56,20 +70,48 @@
     <input type="hidden" name="subject" value="<%= sel.subjectId %>">
     <input type="hidden" name="term" value="<%= sel.term %>">
 
+    <div class="card mb-6">
+      <h3 style="margin:0 0 var(--space-3)">Which marks are you recording today?</h3>
+      <div class="grid grid-2">
+        <% columns.forEach(function (col) { %>
+          <% if (col.open) { %>
+            <label class="pick <%= preTicked.indexOf(col.key) !== -1 ? 'is-on' : '' %>" data-pick="<%= col.key %>">
+              <input type="checkbox" name="record_<%= col.key %>" value="on"
+                     <%= preTicked.indexOf(col.key) !== -1 ? 'checked' : '' %>
+                     data-col="<%= col.key %>">
+              <span>
+                <strong><%= col.label %></strong>
+                <span class="hint" style="margin-top:2px">
+                  Out of <%= col.max %>. Ticked: saved and locked now.
+                  Unticked: left open for later.
+                </span>
+              </span>
+            </label>
+          <% } else { %>
+            <div class="pick is-locked">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:18px;height:18px;flex:none;margin-top:3px">
+                <rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>
+              </svg>
+              <span>
+                <strong><%= col.label %></strong> <span class="badge badge-neutral">locked</span>
+                <span class="hint" style="margin-top:2px">
+                  Recorded by <%= col.teacherName || 'a teacher' %> on <%= fmtDateTime(col.submittedAt) %>,
+                  out of <%= col.max %>.
+                </span>
+              </span>
+            </div>
+          <% } %>
+        <% }) %>
+      </div>
+    </div>
+
     <div class="card card-flush">
       <div class="card-head">
         <div>
           <h3 style="margin:0"><%= roster.length %> students</h3>
-          <div class="text-xs muted">
-            Unit test out of <%= unitTestMax %> &middot; <%= secondaryLabel %> out of <%= secondaryMax %>
-          </div>
+          <div class="text-xs muted">Leave a box blank for a student who was absent or not assessed.</div>
         </div>
-        <div class="row">
-          <span class="badge <%= secondaryComponent === 'practical' ? 'badge-accent' : 'badge-brand' %>">
-            <%= secondaryLabel %>
-          </span>
-          <span class="text-xs muted" id="progress">0 of <%= roster.length %> entered</span>
-        </div>
+        <span class="text-xs muted" id="progress"></span>
       </div>
 
       <div class="table-wrap">
@@ -80,39 +122,45 @@
               <th class="mid" style="width:4.5rem">Roll</th>
               <th style="width:8rem">Adm. No.</th>
               <th>Student Name</th>
-              <th class="mid" style="width:8rem">
-                Unit Test
-                <br><span class="text-xs" style="text-transform:none;letter-spacing:0">max <%= unitTestMax %></span>
-              </th>
-              <th class="mid" style="width:8rem">
-                <%= secondaryLabel %>
-                <br><span class="text-xs" style="text-transform:none;letter-spacing:0">max <%= secondaryMax %></span>
-              </th>
+              <% columns.forEach(function (col) { %>
+                <th class="mid" style="width:8.5rem">
+                  <%= col.label %>
+                  <br><span class="text-xs" style="text-transform:none;letter-spacing:0">
+                    <%= col.open ? 'max ' + col.max : 'locked · /' + col.max %>
+                  </span>
+                </th>
+              <% }) %>
               <th class="mid" style="width:5.5rem">Total</th>
             </tr>
           </thead>
           <tbody>
             <% roster.forEach(function (st, i) { %>
-              <% var v = values[st.id] || {}; %>
+              <% var v = values[st.id] || {}; var rec = recorded[st.id] || {}; %>
               <tr data-row="<%= st.id %>">
                 <td class="mid tnum"><%= i + 1 %></td>
                 <td class="mid tnum"><%= st.roll_no || '—' %></td>
                 <td class="tnum"><%= st.admission_no || '—' %></td>
                 <td class="row-name"><%= st.full_name %></td>
-                <td class="mid">
-                  <input class="entry-input js-mark" type="number" inputmode="decimal"
-                         name="ut_<%= st.id %>" value="<%= v.unitTest || '' %>"
-                         min="0" max="<%= unitTestMax %>" step="0.25"
-                         data-max="<%= unitTestMax %>"
-                         aria-label="Unit test mark for <%= st.full_name %>">
-                </td>
-                <td class="mid">
-                  <input class="entry-input js-mark" type="number" inputmode="decimal"
-                         name="sec_<%= st.id %>" value="<%= v.secondary || '' %>"
-                         min="0" max="<%= secondaryMax %>" step="0.25"
-                         data-max="<%= secondaryMax %>"
-                         aria-label="<%= secondaryLabel %> mark for <%= st.full_name %>">
-                </td>
+
+                <% columns.forEach(function (col) { %>
+                  <td class="mid">
+                    <% if (col.open) { %>
+                      <input class="entry-input js-mark" type="number" inputmode="decimal"
+                             name="<%= col.prefix %>_<%= st.id %>"
+                             value="<%= v[valueKey(col)] || '' %>"
+                             min="0" max="<%= col.max %>" step="0.25"
+                             data-max="<%= col.max %>" data-col="<%= col.key %>"
+                             aria-label="<%= col.label %> mark for <%= st.full_name %>">
+                    <% } else { %>
+                      <span class="tnum js-locked" data-col="<%= col.key %>"
+                            data-value="<%= rec[col.key] === null || rec[col.key] === undefined ? '' : rec[col.key] %>"
+                            style="color:var(--ink-muted)">
+                        <%= rec[col.key] === null || rec[col.key] === undefined ? 'AB' : fmtMark(rec[col.key]) %>
+                      </span>
+                    <% } %>
+                  </td>
+                <% }) %>
+
                 <td class="mid tnum js-total" style="font-weight:600">—</td>
               </tr>
             <% }) %>
@@ -123,7 +171,7 @@
       <div class="card-foot">
         <div class="row-between">
           <span class="text-sm muted">
-            Submitting records these marks against <strong><%= user.teacherName %></strong>.
+            Recording against <strong><%= user.teacherName %></strong>.
           </span>
           <div class="btn-row">
             <a class="btn btn-quiet" href="/teacher/marks">Cancel</a>
@@ -148,26 +196,53 @@
 
     var rows = Array.prototype.slice.call(form.querySelectorAll('tr[data-row]'));
     var progress = document.getElementById('progress');
+    var picks = Array.prototype.slice.call(form.querySelectorAll('input[name^="record_"]'));
+
+    function tickedCols() {
+      return picks.filter(function (p) { return p.checked; }).map(function (p) { return p.getAttribute('data-col'); });
+    }
+
+    function labelFor(col) {
+      var pick = form.querySelector('[data-pick="' + col + '"] strong');
+      return pick ? pick.textContent.trim() : col;
+    }
+
+    // A column that is not being recorded today is dimmed, so it is obvious
+    // which marks are about to be saved.
+    function syncEnabled() {
+      var on = tickedCols();
+      picks.forEach(function (p) {
+        var wrap = form.querySelector('[data-pick="' + p.getAttribute('data-col') + '"]');
+        if (wrap) wrap.classList.toggle('is-on', p.checked);
+      });
+      form.querySelectorAll('.js-mark').forEach(function (input) {
+        var active = on.indexOf(input.getAttribute('data-col')) !== -1;
+        input.disabled = !active;
+        input.style.opacity = active ? '' : '0.45';
+      });
+      refreshAll();
+    }
 
     function refreshRow(row) {
-      var inputs = row.querySelectorAll('.js-mark');
-      var sum = 0;
-      var any = false;
-      var bad = false;
+      var sum = 0, any = false, bad = false;
 
-      inputs.forEach(function (input) {
+      row.querySelectorAll('.js-mark').forEach(function (input) {
+        if (input.disabled) return;
         var text = input.value.trim();
         var max = Number(input.getAttribute('data-max'));
         input.classList.remove('is-bad');
         if (text === '') return;
         var n = Number(text);
-        if (!isFinite(n) || n < 0 || n > max) {
-          input.classList.add('is-bad');
-          bad = true;
-          return;
-        }
-        sum += n;
-        any = true;
+        if (!isFinite(n) || n < 0 || n > max) { input.classList.add('is-bad'); bad = true; return; }
+        sum += n; any = true;
+      });
+
+      // Already-locked columns still count toward the running total.
+      row.querySelectorAll('.js-locked').forEach(function (cell) {
+        var raw = cell.getAttribute('data-value');
+        if (raw === '') return;
+        var n = Number(raw);
+        if (isFinite(n)) { sum += n; any = true; }
       });
 
       var cell = row.querySelector('.js-total');
@@ -178,9 +253,21 @@
 
     function refreshAll() {
       var entered = 0;
-      rows.forEach(function (row) { if (refreshRow(row)) entered++; });
-      if (progress) progress.textContent = entered + ' of ' + rows.length + ' entered';
+      rows.forEach(function (row) {
+        var has = Array.prototype.slice.call(row.querySelectorAll('.js-mark'))
+          .some(function (i) { return !i.disabled && i.value.trim() !== ''; });
+        if (has) entered++;
+        refreshRow(row);
+      });
+      if (progress) {
+        var on = tickedCols();
+        progress.textContent = on.length
+          ? entered + ' of ' + rows.length + ' entered'
+          : 'no column ticked';
+      }
     }
+
+    picks.forEach(function (p) { p.addEventListener('change', syncEnabled); });
 
     form.addEventListener('input', function (e) {
       if (!e.target.classList.contains('js-mark')) return;
@@ -192,34 +279,43 @@
     form.addEventListener('keydown', function (e) {
       if (e.key !== 'Enter' || !e.target.classList.contains('js-mark')) return;
       e.preventDefault();
-      var name = e.target.getAttribute('name').split('_')[0];
-      var all = Array.prototype.slice.call(form.querySelectorAll('input[name^="' + name + '_"]'));
+      var prefix = e.target.getAttribute('name').split('_')[0];
+      var all = Array.prototype.slice.call(form.querySelectorAll('input[name^="' + prefix + '_"]'))
+        .filter(function (i) { return !i.disabled; });
       var next = all[all.indexOf(e.target) + 1];
       if (next) { next.focus(); next.select(); }
     });
 
     form.addEventListener('submit', function (e) {
+      var on = tickedCols();
+      if (!on.length) {
+        e.preventDefault();
+        alert('Tick the column you are recording today. Nothing is saved for an unticked column.');
+        return;
+      }
       if (form.querySelector('.is-bad')) {
         e.preventDefault();
         alert('Some marks are outside the allowed range. Fix the highlighted boxes first.');
         return;
       }
+
+      var names = on.map(labelFor).join(' and ');
+      var open = picks.filter(function (p) { return !p.checked; }).map(function (p) { return labelFor(p.getAttribute('data-col')); });
       var entered = rows.filter(function (r) {
-        return Array.prototype.slice.call(r.querySelectorAll('.js-mark')).some(function (i) { return i.value.trim() !== ''; });
+        return Array.prototype.slice.call(r.querySelectorAll('.js-mark'))
+          .some(function (i) { return !i.disabled && i.value.trim() !== ''; });
       }).length;
-      if (!entered) {
-        e.preventDefault();
-        alert('Enter at least one mark before submitting.');
-        return;
-      }
       var blank = rows.length - entered;
-      var msg = 'Submit marks for ' + entered + ' of ' + rows.length + ' students?'
+
+      var msg = 'Record ' + names + ' for ' + entered + ' of ' + rows.length + ' students?'
         + (blank ? '\n\n' + blank + ' student(s) will be recorded as absent / not assessed.' : '')
-        + '\n\nThis class, subject and term will then be locked. Only an administrator can change it afterwards.';
+        + '\n\n' + names + ' will be locked — only an administrator can change it afterwards.'
+        + (open.length ? '\n' + open.join(' and ') + ' stays open for another day.' : '');
+
       if (!confirm(msg)) { e.preventDefault(); return; }
       document.getElementById('submitbtn').disabled = true;
     });
 
-    refreshAll();
+    syncEnabled();
   })();
 </script>

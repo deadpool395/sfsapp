@@ -79,6 +79,8 @@ const SUBMISSION_COLUMNS = `
   c.sort_order   AS class_sort_order,
   subj.name      AS subject_name,
   t.name         AS teacher_name,
+  ut_t.name      AS unit_test_teacher_name,
+  sec_t.name     AS secondary_teacher_name,
   adm.username   AS updated_by_admin`;
 
 const SUBMISSION_JOINS = `
@@ -87,6 +89,8 @@ const SUBMISSION_JOINS = `
   JOIN classes        c  ON c.id  = s.class_id
   JOIN subjects       subj ON subj.id = s.subject_id
   JOIN teachers       t  ON t.id  = s.teacher_id
+  LEFT JOIN teachers  ut_t  ON ut_t.id  = s.unit_test_teacher_id
+  LEFT JOIN teachers  sec_t ON sec_t.id = s.secondary_teacher_id
   LEFT JOIN admins    adm ON adm.id = s.updated_by_admin_id`;
 
 /** The existing submission for a year/class/subject/term, if any. */
@@ -124,17 +128,21 @@ async function listSubmissions(filters = {}) {
   const where = [];
   const params = [];
 
+  // Every `?` in the fragment binds to the same value, so a filter may
+  // reference it more than once.
   const add = (sql, value) => {
     if (value === undefined || value === null || value === '') return;
     params.push(value);
-    where.push(sql.replace('?', `$${params.length}`));
+    where.push(sql.split('?').join(`$${params.length}`));
   };
 
   add('s.academic_year_id = ?', filters.yearId);
   add('s.class_id = ?', filters.classId);
   add('s.subject_id = ?', filters.subjectId);
   add('s.term = ?', filters.term);
-  add('s.teacher_id = ?', filters.teacherId);
+  // A teacher "owns" a submission if they recorded either component, not just
+  // if they happened to create the row.
+  add('(s.unit_test_teacher_id = ? OR s.secondary_teacher_id = ?)', filters.teacherId);
 
   const rows = await db.many(
     `SELECT ${SUBMISSION_COLUMNS},
@@ -147,61 +155,149 @@ async function listSubmissions(filters = {}) {
   return rows;
 }
 
+/* -------------------------------------------------------- component state -- */
+
 /**
- * Create a submission and its marks in one transaction.
- *
- * Throws an error tagged `code: 'DUPLICATE'` when a submission already exists
- * for the same year/class/subject/term — the database unique index is what
- * actually enforces this, so a replayed POST cannot slip past the UI check.
+ * The two assessed components. `open` is the single definition of "still
+ * accepting entry", derived from `<component>_submitted_at`; routes, views and
+ * reports read this rather than re-deriving the rule.
  */
-async function createSubmission({ yearId, classId, subjectId, term, teacherId, unitTestMax, secondaryMax, secondaryComponent, rows, actor }) {
+const COMPONENTS = ['unit_test', 'secondary'];
+
+function componentState(submission) {
+  if (!submission) {
+    return {
+      unit_test: { key: 'unit_test', open: true, recorded: false, max: null },
+      secondary: { key: 'secondary', open: true, recorded: false, max: null },
+      anyOpen: true,
+      anyRecorded: false,
+      allRecorded: false,
+    };
+  }
+
+  const build = (key) => {
+    const at = submission[`${key}_submitted_at`] ?? null;
+    return {
+      key,
+      recorded: at !== null,
+      open: at === null,
+      max: submission[`${key}_max`] === null || submission[`${key}_max`] === undefined
+        ? null
+        : Number(submission[`${key}_max`]),
+      submittedAt: at,
+      teacherId: submission[`${key}_teacher_id`] ?? null,
+      teacherName: submission[`${key}_teacher_name`] ?? null,
+    };
+  };
+
+  const state = { unit_test: build('unit_test'), secondary: build('secondary') };
+  state.anyOpen = state.unit_test.open || state.secondary.open;
+  state.anyRecorded = state.unit_test.recorded || state.secondary.recorded;
+  state.allRecorded = !state.anyOpen;
+  return state;
+}
+
+/**
+ * Record one or both components of a class/subject/term, in one transaction.
+ *
+ * `components` carries only what the teacher ticked, e.g.
+ *   { secondary: { max: 10, rows: [{ studentId, value }] } }
+ *
+ * Repeat entry is blocked by the database, not by the page. Either this call
+ * creates the row (so it owns the components it just closed), or the row
+ * already existed and each component is closed by a conditional UPDATE guarded
+ * on `<c>_submitted_at IS NULL` — a replayed POST matches no rows and is
+ * rejected. Components left unticked keep their marks and stay open.
+ *
+ * Throws `code: 'COMPONENT_TAKEN'` listing components someone else closed first.
+ */
+async function recordComponents({
+  yearId, classId, subjectId, term, teacherId, secondaryComponent, components, actor,
+}) {
+  const keys = COMPONENTS.filter((k) => components[k]);
+  if (!keys.length) throw new Error('No components were selected for recording.');
+
   return db.transaction(async (c) => {
-    let submission;
-    try {
-      const res = await c.query(
-        `INSERT INTO mark_submissions
-           (academic_year_id, class_id, subject_id, term, teacher_id,
-            unit_test_max, secondary_max, secondary_component)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING *`,
-        [yearId, classId, subjectId, term, teacherId, unitTestMax, secondaryMax, secondaryComponent]
+    // `RETURNING id` tells us whether we created the row. If we did, the
+    // components named here were closed by this very statement.
+    const created = await c.query(
+      `INSERT INTO mark_submissions
+         (academic_year_id, class_id, subject_id, term, teacher_id, secondary_component,
+          ${keys.map((k) => `${k}_max, ${k}_teacher_id, ${k}_submitted_at`).join(', ')})
+       VALUES ($1, $2, $3, $4, $5, $6,
+          ${keys.map((_, i) => `$${7 + i * 2}, $${8 + i * 2}, now()`).join(', ')})
+       ON CONFLICT (academic_year_id, class_id, subject_id, term) DO NOTHING
+       RETURNING id`,
+      [
+        yearId, classId, subjectId, term, teacherId, secondaryComponent,
+        ...keys.flatMap((k) => [components[k].max, teacherId]),
+      ]
+    );
+
+    let submissionId = created.rows[0]?.id ?? null;
+
+    if (!submissionId) {
+      // The row already existed: close each ticked component only if it is
+      // still open.
+      const { rows: found } = await c.query(
+        `SELECT id FROM mark_submissions
+          WHERE academic_year_id = $1 AND class_id = $2 AND subject_id = $3 AND term = $4
+          FOR UPDATE`,
+        [yearId, classId, subjectId, term]
       );
-      submission = res.rows[0];
-    } catch (err) {
-      if (err.code === UNIQUE_VIOLATION) {
-        const dup = new Error('Marks have already been submitted for this class, subject and term.');
-        dup.code = 'DUPLICATE';
-        throw dup;
+      submissionId = found[0].id;
+
+      const taken = [];
+      for (const key of keys) {
+        const res = await c.query(
+          `UPDATE mark_submissions
+              SET ${key}_max = $1, ${key}_teacher_id = $2, ${key}_submitted_at = now()
+            WHERE id = $3 AND ${key}_submitted_at IS NULL`,
+          [components[key].max, teacherId, submissionId]
+        );
+        if (res.rowCount === 0) taken.push(key);
       }
-      throw err;
+
+      if (taken.length) {
+        const err = new Error('Those marks have already been recorded.');
+        err.code = 'COMPONENT_TAKEN';
+        err.components = taken;
+        throw err;
+      }
     }
 
-    if (rows.length) {
+    // Write only the ticked components' columns, leaving the other intact.
+    for (const key of keys) {
+      const rows = components[key].rows;
+      if (!rows.length) continue;
       await c.query(
-        `INSERT INTO marks (submission_id, student_id, unit_test_mark, secondary_mark)
-         SELECT $1, s, u, a
-           FROM unnest($2::int[], $3::numeric[], $4::numeric[]) AS t(s, u, a)`,
-        [
-          submission.id,
-          rows.map((r) => r.studentId),
-          rows.map((r) => r.unitTest),
-          rows.map((r) => r.secondary),
-        ]
+        `INSERT INTO marks (submission_id, student_id, ${key}_mark)
+         SELECT $1, s, v FROM unnest($2::int[], $3::numeric[]) AS t(s, v)
+         ON CONFLICT (submission_id, student_id)
+         DO UPDATE SET ${key}_mark = EXCLUDED.${key}_mark`,
+        [submissionId, rows.map((r) => r.studentId), rows.map((r) => r.value)]
       );
     }
 
     await audit.log(
       {
         actor,
-        action: 'submission.create',
+        action: 'submission.record',
         entity: 'mark_submission',
-        entityId: submission.id,
-        details: { students: rows.length, term, subjectId, classId },
+        entityId: submissionId,
+        details: {
+          components: keys,
+          students: Math.max(...keys.map((k) => components[k].rows.length)),
+          term,
+          subjectId,
+          classId,
+        },
       },
       c
     );
 
-    return submission;
+    const { rows: fresh } = await c.query('SELECT * FROM mark_submissions WHERE id = $1', [submissionId]);
+    return fresh[0];
   });
 }
 
@@ -274,6 +370,69 @@ function sameMark(a, b) {
 }
 
 /**
+ * Reopen a single component, clearing its marks while leaving the other
+ * component untouched. If nothing is left recorded, the row itself goes, since
+ * an empty submission carries no information.
+ *
+ * Audited with the removed values, so a release is always recoverable from the
+ * audit trail.
+ */
+async function releaseComponent({ submissionId, component, actor }) {
+  if (!COMPONENTS.includes(component)) throw new Error(`Unknown component "${component}".`);
+
+  return db.transaction(async (c) => {
+    const { rows: subRows } = await c.query(
+      'SELECT * FROM mark_submissions WHERE id = $1 FOR UPDATE',
+      [submissionId]
+    );
+    if (!subRows.length) return { released: false };
+    const submission = subRows[0];
+    // Already open — nothing to do.
+    if (!submission[`${component}_submitted_at`]) return { released: false };
+
+    const { rows: markRows } = await c.query(
+      `SELECT m.student_id, m.${component}_mark AS value, st.full_name
+         FROM marks m JOIN students st ON st.id = m.student_id
+        WHERE m.submission_id = $1 AND m.${component}_mark IS NOT NULL`,
+      [submissionId]
+    );
+
+    await audit.log(
+      {
+        actor,
+        action: 'submission.component.release',
+        entity: 'mark_submission',
+        entityId: submissionId,
+        details: {
+          component,
+          max: submission[`${component}_max`],
+          recorded_by: submission[`${component}_teacher_id`],
+          marks: markRows,
+        },
+      },
+      c
+    );
+
+    await c.query(`UPDATE marks SET ${component}_mark = NULL WHERE submission_id = $1`, [submissionId]);
+    await c.query(
+      `UPDATE mark_submissions
+          SET ${component}_max = NULL, ${component}_teacher_id = NULL, ${component}_submitted_at = NULL
+        WHERE id = $1`,
+      [submissionId]
+    );
+
+    const other = component === 'unit_test' ? 'secondary' : 'unit_test';
+    const submissionRemoved = !submission[`${other}_submitted_at`];
+    if (submissionRemoved) {
+      // Nothing recorded any more — drop the row (cascades to its marks).
+      await c.query('DELETE FROM mark_submissions WHERE id = $1', [submissionId]);
+    }
+
+    return { released: true, submissionRemoved, cleared: markRows.length };
+  });
+}
+
+/**
  * Delete a submission so the class/subject/term is open again and the teacher
  * can re-enter it. Audited, with the removed marks kept in the audit details.
  */
@@ -312,13 +471,20 @@ async function releaseSubmission({ submissionId, actor }) {
  * table, the Excel sheet and the PDF.
  */
 function buildReportData(submission, markRows) {
-  const unitMax = Number(submission.unit_test_max);
-  const secMax = Number(submission.secondary_max);
-  const totalMax = unitMax + secMax;
+  const state = componentState(submission);
+
+  // Only a recorded component contributes a maximum. A report pulled before
+  // both components exist is then scored out of what has actually been
+  // assessed, instead of out of a maximum nobody has marked yet.
+  const unitMax = state.unit_test.max;
+  const secMax = state.secondary.max;
+  const totalMax = (state.unit_test.recorded ? unitMax : 0) + (state.secondary.recorded ? secMax : 0);
 
   const students = markRows.map((r, i) => {
-    const ut = numOrNull(r.unit_test_mark);
-    const sec = numOrNull(r.secondary_mark);
+    // A blank inside a recorded component means absent; a component that has
+    // not been recorded at all is simply not yet known, which is different.
+    const ut = state.unit_test.recorded ? numOrNull(r.unit_test_mark) : null;
+    const sec = state.secondary.recorded ? numOrNull(r.secondary_mark) : null;
     const hasAny = ut !== null || sec !== null;
     const total = hasAny ? (ut ?? 0) + (sec ?? 0) : null;
     return {
@@ -340,6 +506,7 @@ function buildReportData(submission, markRows) {
 
   return {
     submission,
+    state,
     unitMax,
     secMax,
     totalMax,
@@ -376,8 +543,11 @@ module.exports = {
   getSubmission,
   getSubmissionMarks,
   listSubmissions,
-  createSubmission,
+  COMPONENTS,
+  componentState,
+  recordComponents,
   updateMarks,
+  releaseComponent,
   releaseSubmission,
   buildReportData,
   loadReport,

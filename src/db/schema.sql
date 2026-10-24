@@ -117,19 +117,34 @@ CREATE TABLE IF NOT EXISTS mark_submissions (
   class_id            INTEGER NOT NULL REFERENCES classes(id)        ON DELETE CASCADE,
   subject_id          INTEGER NOT NULL REFERENCES subjects(id)       ON DELETE RESTRICT,
   term                TEXT    NOT NULL CHECK (term IN ('term1', 'term2', 'term3')),
+  -- Who first created the row, and when. Each component also records its own
+  -- teacher and timestamp below.
   teacher_id          INTEGER NOT NULL REFERENCES teachers(id)       ON DELETE RESTRICT,
-  -- Snapshotted at submission time so that later changes to a subject's
-  -- component type or to the default maxima cannot reinterpret old marks.
-  unit_test_max       NUMERIC(6,2) NOT NULL,
-  secondary_max       NUMERIC(6,2) NOT NULL,
+  submitted_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- The two assessed components are recorded independently: a teacher may have
+  -- assignment marks weeks before unit test marks. For each one,
+  -- `<component>_submitted_at IS NULL` means "still open for entry"; once set,
+  -- that column is locked and only an admin can change or release it.
+  --
+  -- The maxima are snapshotted when their component is recorded, so later
+  -- changes to a subject's component type or to the default maxima cannot
+  -- reinterpret marks already taken.
+  unit_test_max          NUMERIC(6,2),
+  unit_test_teacher_id   INTEGER REFERENCES teachers(id) ON DELETE RESTRICT,
+  unit_test_submitted_at TIMESTAMPTZ,
+
+  secondary_max          NUMERIC(6,2),
+  secondary_teacher_id   INTEGER REFERENCES teachers(id) ON DELETE RESTRICT,
+  secondary_submitted_at TIMESTAMPTZ,
+
   secondary_component TEXT    NOT NULL
     CHECK (secondary_component IN ('assignment', 'practical')),
-  submitted_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ,
   updated_by_admin_id INTEGER REFERENCES admins(id) ON DELETE SET NULL,
 
-  -- The duplicate-entry guard. A teacher cannot submit the same
-  -- class/subject/term twice; only an admin can edit or release a submission.
+  -- The duplicate-entry guard: one row per class/subject/term. Repeat entry is
+  -- blocked per component by the conditional UPDATE in services/marks.js.
   UNIQUE (academic_year_id, class_id, subject_id, term)
 );
 
@@ -182,3 +197,74 @@ CREATE TABLE IF NOT EXISTS import_batches (
   created_by       TEXT,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+/* ------------------------------------------- upgrade: per-component locking */
+-- Idempotent, so `npm run db:migrate` remains the single migration path.
+-- Brings a database created before per-component locking up to the shape
+-- declared above, and backfills the new columns from the existing marks.
+
+ALTER TABLE mark_submissions ALTER COLUMN unit_test_max DROP NOT NULL;
+ALTER TABLE mark_submissions ALTER COLUMN secondary_max DROP NOT NULL;
+
+ALTER TABLE mark_submissions
+  ADD COLUMN IF NOT EXISTS unit_test_teacher_id   INTEGER REFERENCES teachers(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS unit_test_submitted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS secondary_teacher_id   INTEGER REFERENCES teachers(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS secondary_submitted_at TIMESTAMPTZ;
+
+-- A pre-upgrade submission carrying no marks at all says nothing; drop it so
+-- the "at least one component recorded" invariant below can hold. The
+-- `_submitted_at IS NULL` guards confine this to rows not yet migrated, so a
+-- legitimately all-absent column recorded later is never touched.
+DELETE FROM mark_submissions s
+ WHERE s.unit_test_submitted_at IS NULL
+   AND s.secondary_submitted_at IS NULL
+   AND NOT EXISTS (
+     SELECT 1 FROM marks m
+      WHERE m.submission_id = s.id
+        AND (m.unit_test_mark IS NOT NULL OR m.secondary_mark IS NOT NULL)
+   );
+
+-- Backfill: a component counts as already recorded when any pupil has a mark
+-- for it. A component with no marks at all reopens, which is what lets a
+-- teacher who submitted only assignment marks come back for the unit test.
+-- Correlated subqueries rather than a FROM/LATERAL join: an UPDATE's FROM list
+-- cannot reference the row being updated, but SET expressions can.
+UPDATE mark_submissions s SET
+  unit_test_submitted_at = CASE WHEN EXISTS (
+      SELECT 1 FROM marks m WHERE m.submission_id = s.id AND m.unit_test_mark IS NOT NULL
+    ) THEN s.submitted_at END,
+  unit_test_teacher_id = CASE WHEN EXISTS (
+      SELECT 1 FROM marks m WHERE m.submission_id = s.id AND m.unit_test_mark IS NOT NULL
+    ) THEN s.teacher_id END,
+  unit_test_max = CASE WHEN EXISTS (
+      SELECT 1 FROM marks m WHERE m.submission_id = s.id AND m.unit_test_mark IS NOT NULL
+    ) THEN s.unit_test_max END,
+  secondary_submitted_at = CASE WHEN EXISTS (
+      SELECT 1 FROM marks m WHERE m.submission_id = s.id AND m.secondary_mark IS NOT NULL
+    ) THEN s.submitted_at END,
+  secondary_teacher_id = CASE WHEN EXISTS (
+      SELECT 1 FROM marks m WHERE m.submission_id = s.id AND m.secondary_mark IS NOT NULL
+    ) THEN s.teacher_id END,
+  secondary_max = CASE WHEN EXISTS (
+      SELECT 1 FROM marks m WHERE m.submission_id = s.id AND m.secondary_mark IS NOT NULL
+    ) THEN s.secondary_max END
+WHERE s.unit_test_submitted_at IS NULL
+  AND s.secondary_submitted_at IS NULL;
+
+-- A submission row exists only because some component was recorded.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'mark_submissions_component_recorded'
+  ) THEN
+    ALTER TABLE mark_submissions
+      ADD CONSTRAINT mark_submissions_component_recorded
+      CHECK (unit_test_submitted_at IS NOT NULL OR secondary_submitted_at IS NOT NULL);
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS mark_submissions_ut_teacher_idx
+  ON mark_submissions (unit_test_teacher_id) WHERE unit_test_teacher_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS mark_submissions_sec_teacher_idx
+  ON mark_submissions (secondary_teacher_id) WHERE secondary_teacher_id IS NOT NULL;

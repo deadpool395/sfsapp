@@ -224,6 +224,52 @@ router.post('/:id(\\d+)/edit', async (req, res, next) => {
 
 /* ---------------------------------------------------------------- release --- */
 
+/** Reopen one column, leaving the other component's marks untouched. */
+router.post('/:id(\\d+)/release/:component', async (req, res, next) => {
+  try {
+    const data = await loadOrFail(req, res);
+    if (!data) return undefined;
+
+    const s = data.submission;
+    const component = req.params.component;
+    if (!marksService.COMPONENTS.includes(component)) {
+      req.flash('error', 'Unknown column.');
+      return res.redirect(`/admin/marks/${s.id}`);
+    }
+
+    const label = component === 'unit_test' ? 'Unit Test' : componentLabel(s.secondary_component);
+
+    if (String(req.body.confirm || '').trim().toUpperCase() !== 'RELEASE') {
+      req.flash('error', `Type RELEASE to confirm. The ${label.toLowerCase()} marks will be deleted.`);
+      return res.redirect(`/admin/marks/${s.id}`);
+    }
+
+    const result = await marksService.releaseComponent({
+      submissionId: s.id,
+      component,
+      actor: req.session.user,
+    });
+
+    if (!result.released) {
+      req.flash('error', `${label} is not recorded, so there is nothing to release.`);
+      return res.redirect(`/admin/marks/${s.id}`);
+    }
+
+    const where = `${formatClassLabel({ name: s.class_name, division: s.class_division })} — ${s.subject_name} — ${termLabel(s.term)}`;
+    req.flash(
+      'success',
+      `<strong>${label}</strong> released for ${where} — ${result.cleared} mark(s) cleared. ` +
+        'A teacher can enter it again; the deleted marks are kept in the audit trail.'
+    );
+
+    // When nothing is left recorded the row itself is gone, so there is no
+    // detail page to go back to.
+    return res.redirect(result.submissionRemoved ? '/admin/marks' : `/admin/marks/${s.id}`);
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.post('/:id(\\d+)/release', async (req, res, next) => {
   try {
     const data = await loadOrFail(req, res);

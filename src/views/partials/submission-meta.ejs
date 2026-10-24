@@ -1,6 +1,7 @@
 <%
   var s = data.submission;
   var secLabel = componentLabel(s.secondary_component);
+  var st8 = data.state;
 %>
 <div class="grid grid-4" style="margin-bottom:var(--space-6)">
   <div class="stat">
@@ -13,21 +14,54 @@
     <div class="n" style="font-size:1.3rem"><%= s.subject_name %></div>
     <div class="text-xs muted"><%= termLabel(s.term) %> &middot; <%= secLabel %></div>
   </div>
+
+  <%
+    // Each component carries its own teacher and timestamp: the unit test and
+    // the assignment are commonly recorded weeks apart, and may be by
+    // different staff.
+    var parts = [
+      { label: 'Unit Test', st: st8.unit_test },
+      { label: secLabel,    st: st8.secondary }
+    ];
+  %>
   <div class="stat">
     <div class="k">Entered by</div>
-    <div class="n" style="font-size:1.3rem"><%= s.teacher_name %></div>
-    <div class="text-xs muted"><%= fmtDateTime(s.submitted_at) %></div>
+    <% parts.forEach(function (p) { %>
+      <div style="margin-top:var(--space-1)">
+        <div class="text-sm"><strong><%= p.label %></strong>:
+          <% if (p.st.recorded) { %><%= p.st.teacherName || '—' %>
+          <% } else { %><span class="muted">not yet entered</span><% } %>
+        </div>
+        <% if (p.st.recorded) { %>
+          <div class="text-xs muted"><%= fmtDateTime(p.st.submittedAt) %></div>
+        <% } %>
+      </div>
+    <% }) %>
   </div>
+
   <div class="stat">
     <div class="k">Assessed</div>
     <div class="n"><%= data.totals.counted %><span class="text-sm muted">/<%= data.students.length %></span></div>
     <div class="text-xs muted">
       <% if (data.totals.averagePercent !== null) { %>
-        average <%= data.totals.averagePercent.toFixed(1) %>%
+        average <%= data.totals.averagePercent.toFixed(1) %>% of <%= fmtMark(data.totalMax) %>
       <% } else { %>no marks recorded<% } %>
     </div>
   </div>
 </div>
+
+<% if (st8.anyOpen) { %>
+  <div class="notice notice-info">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 16v-5m0-3h.01"/>
+    </svg>
+    <div>
+      <strong><%= st8.unit_test.open ? 'Unit Test' : secLabel %></strong> has not been entered yet, so totals and
+      percentages here cover <%= st8.unit_test.open ? secLabel.toLowerCase() : 'unit test' %> marks only.
+      Any teacher can still enter it.
+    </div>
+  </div>
+<% } %>
 
 <% if (s.updated_at) { %>
   <div class="notice notice-warn">

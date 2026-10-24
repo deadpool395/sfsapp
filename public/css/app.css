@@ -574,3 +574,39 @@ table.data .row-name { font-weight: 500; }
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 1ms !important; animation-duration: 1ms !important; }
 }
+
+/* ---------------------------------------------- component picker (entry) --- */
+/* One tile per assessed column, so it is unmistakable which marks are about to
+   be saved and locked and which are being left open for another day. */
+
+.pick {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out),
+              transform 160ms var(--ease-spring), box-shadow 160ms var(--ease-out);
+}
+
+.pick:hover { border-color: var(--brand-300); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.pick:active { transform: translateY(0); }
+.pick:focus-within { outline: none; box-shadow: var(--ring), var(--shadow-sm); border-color: var(--brand-500); }
+
+.pick input[type='checkbox'] { width: auto; margin-top: 3px; flex: none; accent-color: var(--brand-600); }
+.pick strong { color: var(--brand-900); }
+.pick .hint { display: block; }
+
+.pick.is-on { border-color: var(--brand-400); background: var(--brand-50); }
+
+.pick.is-locked {
+  cursor: default;
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  box-shadow: none;
+}
+.pick.is-locked:hover { transform: none; border-color: var(--hairline); box-shadow: none; }

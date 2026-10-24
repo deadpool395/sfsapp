@@ -74,13 +74,25 @@ function reportFilename(data, ext) {
 /** Facts shown above the table in both formats. */
 function headerPairs(data, schoolName) {
   const s = data.submission;
+  const state = data.state;
+  const secLabel = componentLabel(s.secondary_component);
+
+  // The two components are recorded separately and often weeks apart, so each
+  // carries its own "who and when" rather than one shared line.
+  const byComponent = (label, c) => [
+    label,
+    c.recorded
+      ? `${c.teacherName || '—'}, ${new Date(c.submittedAt).toLocaleString('en-IN')}`
+      : 'not yet entered',
+  ];
+
   return [
     ['Academic Year', s.year_name],
     ['Class', formatClassLabel({ name: s.class_name, division: s.class_division })],
     ['Subject', s.subject_name],
     ['Term', termLabel(s.term)],
-    ['Entered by', s.teacher_name],
-    ['Submitted on', new Date(s.submitted_at).toLocaleString('en-IN')],
+    byComponent('Unit Test by', state.unit_test),
+    byComponent(`${secLabel} by`, state.secondary),
     ...(s.updated_at
       ? [['Last edited', `${new Date(s.updated_at).toLocaleString('en-IN')} by admin ${s.updated_by_admin || ''}`.trim()]]
       : []),
@@ -165,8 +177,8 @@ async function buildExcel(data, { schoolName }) {
     'Roll',
     'Adm. No.',
     'Student Name',
-    `Unit Test (${fmt(data.unitMax)})`,
-    `${secLabel} (${fmt(data.secMax)})`,
+    data.state.unit_test.recorded ? `Unit Test (${fmt(data.unitMax)})` : 'Unit Test (not yet entered)',
+    data.state.secondary.recorded ? `${secLabel} (${fmt(data.secMax)})` : `${secLabel} (not yet entered)`,
     `Total (${fmt(data.totalMax)})`,
     '%',
   ]);
@@ -193,8 +205,8 @@ async function buildExcel(data, { schoolName }) {
       roll: st.rollNo,
       adm: st.admissionNo,
       name: st.name,
-      ut: st.unitTest === null ? 'AB' : Number(st.unitTest),
-      sec: st.secondary === null ? 'AB' : Number(st.secondary),
+      ut: !data.state.unit_test.recorded ? '—' : (st.unitTest === null ? 'AB' : Number(st.unitTest)),
+      sec: !data.state.secondary.recorded ? '—' : (st.secondary === null ? 'AB' : Number(st.secondary)),
       total: st.total === null ? '' : Number(st.total),
       pct: st.percent === null ? '' : Number(st.percent / 100),
     });
@@ -227,8 +239,8 @@ async function buildExcel(data, { schoolName }) {
   const t = data.totals;
   const foot = ws.addRow({
     name: `Total (${t.counted} assessed, ${t.absent} absent)`,
-    ut: t.unitTest === null ? '' : Number(t.unitTest),
-    sec: t.secondary === null ? '' : Number(t.secondary),
+    ut: !data.state.unit_test.recorded ? '—' : (t.unitTest === null ? '' : Number(t.unitTest)),
+    sec: !data.state.secondary.recorded ? '—' : (t.secondary === null ? '' : Number(t.secondary)),
     total: t.total === null ? '' : Number(t.total),
     pct: t.averagePercent === null ? '' : Number(t.averagePercent / 100),
   });
@@ -241,7 +253,7 @@ async function buildExcel(data, { schoolName }) {
   for (const key of ['ut', 'sec', 'total']) foot.getCell(key).alignment = { horizontal: 'center' };
 
   ws.addRow([]);
-  const note = ws.addRow([`AB = absent / not assessed.  Average % is the mean of assessed students.`]);
+  const note = ws.addRow([`AB = absent / not assessed.  — = that column has not been entered yet.  Average % is the mean of assessed students, out of ${fmt(data.totalMax)}.`]);
   note.getCell(1).font = { name: XL_FONT, size: 9, italic: true, color: { argb: 'FF8A9A95' } };
   ws.mergeCells(note.number, 1, note.number, lastCol);
 
@@ -381,8 +393,18 @@ function streamPdf(data, { schoolName, res }) {
     { key: 'rollNo', label: 'Roll', w: 32, align: 'center' },
     { key: 'admissionNo', label: 'Adm. No.', w: 62, align: 'center' },
     { key: 'name', label: 'Student Name', w: usable - 26 - 32 - 62 - 62 - 66 - 50 - 44, align: 'left' },
-    { key: 'unitTest', label: `Unit Test\n(${fmt(data.unitMax)})`, w: 62, align: 'center' },
-    { key: 'secondary', label: `${secLabel}\n(${fmt(data.secMax)})`, w: 66, align: 'center' },
+    {
+      key: 'unitTest',
+      label: data.state.unit_test.recorded ? `Unit Test\n(${fmt(data.unitMax)})` : 'Unit Test\n(pending)',
+      w: 62,
+      align: 'center',
+    },
+    {
+      key: 'secondary',
+      label: data.state.secondary.recorded ? `${secLabel}\n(${fmt(data.secMax)})` : `${secLabel}\n(pending)`,
+      w: 66,
+      align: 'center',
+    },
     { key: 'total', label: `Total\n(${fmt(data.totalMax)})`, w: 50, align: 'center' },
     { key: 'percent', label: '%', w: 44, align: 'center' },
   ];
@@ -406,8 +428,8 @@ function streamPdf(data, { schoolName, res }) {
   }
 
   function cellText(st, key) {
-    if (key === 'unitTest') return st.unitTest === null ? 'AB' : fmt(st.unitTest);
-    if (key === 'secondary') return st.secondary === null ? 'AB' : fmt(st.secondary);
+    if (key === 'unitTest') return !data.state.unit_test.recorded ? '—' : (st.unitTest === null ? 'AB' : fmt(st.unitTest));
+    if (key === 'secondary') return !data.state.secondary.recorded ? '—' : (st.secondary === null ? 'AB' : fmt(st.secondary));
     if (key === 'total') return st.total === null ? '—' : fmt(st.total);
     if (key === 'percent') return st.percent === null ? '—' : `${st.percent.toFixed(1)}%`;
     return String(st[key] ?? '');
@@ -445,8 +467,8 @@ function streamPdf(data, { schoolName, res }) {
   doc.font(FONT.bold).fontSize(8).fillColor(INK_PDF);
   const totalsByKey = {
     name: `Total (${t.counted} assessed, ${t.absent} absent)`,
-    unitTest: t.unitTest === null ? '' : fmt(t.unitTest),
-    secondary: t.secondary === null ? '' : fmt(t.secondary),
+    unitTest: !data.state.unit_test.recorded ? '—' : (t.unitTest === null ? '' : fmt(t.unitTest)),
+    secondary: !data.state.secondary.recorded ? '—' : (t.secondary === null ? '' : fmt(t.secondary)),
     total: t.total === null ? '' : fmt(t.total),
     percent: t.averagePercent === null ? '' : `${t.averagePercent.toFixed(1)}%`,
   };
@@ -458,7 +480,7 @@ function streamPdf(data, { schoolName, res }) {
   y += rowH + 4;
 
   doc.font(FONT.regular).fontSize(7.5).fillColor('#8a9a95')
-    .text('AB = absent / not assessed. Average % is the mean of assessed students.', left, y + 8, { width: usable });
+    .text('AB = absent / not assessed.  — = that column has not been entered yet.  Average % is the mean of assessed students, out of ' + fmt(data.totalMax) + '.', left, y + 8, { width: usable });
 
   /* ---- per-page footer: required "Powered by Daniel" credit ---- */
   const range = doc.bufferedPageRange();

@@ -71,13 +71,25 @@
                 <div class="text-xs muted"><%= s.year_name %></div></td>
               <td><%= s.subject_name %></td>
               <td><%= termLabel(s.term) %></td>
+              <%
+                var utOn = !!s.unit_test_submitted_at;
+                var secOn = !!s.secondary_submitted_at;
+              %>
               <td class="mid">
-                <span class="badge <%= s.secondary_component === 'practical' ? 'badge-accent' : 'badge-brand' %>">
-                  <%= componentLabel(s.secondary_component) %>
-                </span>
+                <div class="text-xs" style="display:flex;flex-direction:column;gap:3px;align-items:center">
+                  <span class="badge <%= utOn ? 'badge-brand' : 'badge-neutral' %>">UT <%= utOn ? '✓' : 'pending' %></span>
+                  <span class="badge <%= secOn ? (s.secondary_component === 'practical' ? 'badge-accent' : 'badge-brand') : 'badge-neutral' %>">
+                    <%= componentLabel(s.secondary_component) %> <%= secOn ? '✓' : 'pending' %>
+                  </span>
+                </div>
               </td>
               <td class="mid tnum"><%= s.student_count %></td>
-              <td class="text-sm"><%= fmtDateTime(s.submitted_at) %>
+              <td class="text-sm">
+                <% if (utOn) { %><div class="text-xs">UT <%= fmtDateTime(s.unit_test_submitted_at) %></div><% } %>
+                <% if (secOn) { %><div class="text-xs"><%= componentLabel(s.secondary_component).slice(0, 4) %> <%= fmtDateTime(s.secondary_submitted_at) %></div><% } %>
+                <% if (!utOn || !secOn) { %>
+                  <a class="text-xs" href="/teacher/marks/entry?year=<%= s.academic_year_id %>&class=<%= s.class_id %>&subject=<%= s.subject_id %>&term=<%= s.term %>">Enter the rest</a>
+                <% } %>
                 <% if (s.updated_at) { %><div class="text-xs" style="color:var(--accent-600)">edited by admin</div><% } %>
               </td>
               <td class="mid nowrap">

@@ -18,6 +18,11 @@ const NAMES = [
   'DAVID SEBASTIAN', 'RITHVI R', 'SANVI S', 'VIHAAN S',
 ];
 
+// `--partial` renders the mid-term case: the practical recorded, the unit test
+// not yet entered.
+const partial = process.argv.includes('--partial');
+const now = new Date();
+
 const submission = {
   id: 0,
   year_name: '2026-2027',
@@ -27,9 +32,16 @@ const submission = {
   term: 'term1',
   teacher_name: 'Mrs. Lakshmi Nair',
   secondary_component: 'practical',
-  unit_test_max: 25,
+
+  unit_test_max: partial ? null : 25,
+  unit_test_teacher_name: partial ? null : 'Mr. Rajesh Kumar',
+  unit_test_submitted_at: partial ? null : now,
+
   secondary_max: 20,
-  submitted_at: new Date(),
+  secondary_teacher_name: 'Mrs. Lakshmi Nair',
+  secondary_submitted_at: now,
+
+  submitted_at: now,
   updated_at: null,
   updated_by_admin: null,
 };
