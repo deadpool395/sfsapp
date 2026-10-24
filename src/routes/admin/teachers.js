@@ -2,7 +2,12 @@
 /** Teacher records. These populate the post-login name dropdown. */
 
 const express = require('express');
+const ExcelJS = require('exceljs');
+
 const db = require('../../db/pool');
+const importer = require('../../services/teacherImport');
+const excel = require('../../services/excelImport');
+const { spreadsheetUpload } = require('../../lib/upload');
 
 const router = express.Router();
 
@@ -95,6 +100,164 @@ router.post('/:id(\\d+)/delete', async (req, res, next) => {
     await db.query('DELETE FROM teachers WHERE id = $1', [req.params.id]);
     req.flash('success', 'Teacher removed.');
     return res.redirect('/admin/teachers');
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/* ------------------------------------------------------- bulk import ----- */
+// `POST /:id(\d+)` above is digit-constrained, so these literal paths cannot
+// be shadowed by it.
+
+/** Blank spreadsheet in the shape the importer expects. */
+router.get('/template', async (req, res, next) => {
+  try {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Teachers');
+    ws.columns = [
+      { header: 'Name', width: 32 },
+      { header: 'Staff Code', width: 14 },
+      { header: 'Email', width: 28 },
+      { header: 'Phone', width: 16 },
+    ];
+    ws.getRow(1).eachCell((cell) => {
+      cell.font = { name: 'Montserrat', bold: true, color: { argb: 'FF2C6559' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCEBE7' } };
+    });
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+
+    // Obviously fictional, so sample rows are never mistaken for real staff.
+    ws.addRow(['Mrs. Example Teacher', 'T001', 'example@school.in', '9000000001']);
+    ws.addRow(['Mr. Sample Name', 'T002', '', '']);
+
+    ws.addRow([]);
+    ws.addRow(['Only Name is required. Delete these example rows before uploading.']).getCell(1).font = {
+      name: 'Montserrat', italic: true, size: 9, color: { argb: 'FF8A9A95' },
+    };
+
+    const buffer = await wb.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="Teacher_Import_Template.xlsx"');
+    return res.send(Buffer.from(buffer));
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get('/import', async (req, res, next) => {
+  try {
+    const counts = await db.one(
+      `SELECT count(*)::int AS total, count(*) FILTER (WHERE is_active)::int AS active FROM teachers`
+    );
+    return res.render('admin/teacher-import-upload', { title: 'Import Teachers', counts });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/import', spreadsheetUpload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      req.flash('error', 'Choose an .xlsx file to upload.');
+      return res.redirect('/admin/teachers/import');
+    }
+
+    const parsed = await excel.parseWorkbook(req.file.buffer);
+    const token = excel.stash({
+      parsed,
+      filename: req.file.originalname,
+      kind: 'teachers',
+      mapping: importer.suggestMapping(parsed.columns),
+    });
+
+    return res.redirect(`/admin/teachers/import/${token}`);
+  } catch (err) {
+    if (err.status === 400) {
+      req.flash('error', err.message);
+      return res.redirect('/admin/teachers/import');
+    }
+    return next(err);
+  }
+});
+
+/** Mapping + preview. */
+router.get('/import/:token', async (req, res, next) => {
+  try {
+    const staged = excel.peek(req.params.token);
+    if (!staged || staged.kind !== 'teachers') {
+      req.flash('error', 'That upload has expired. Please upload the file again.');
+      return res.redirect('/admin/teachers/import');
+    }
+
+    const mapping = staged.mapping || importer.suggestMapping(staged.parsed.columns);
+    const [preview, plan] = await Promise.all([
+      importer.buildPreview({ rows: staged.parsed.rows, mapping }),
+      importer.importPlan({ rows: staged.parsed.rows, mapping }),
+    ]);
+
+    return res.render('admin/teacher-import-map', {
+      title: 'Map Columns',
+      wide: true,
+      token: req.params.token,
+      staged,
+      fields: importer.FIELDS,
+      mapping,
+      preview,
+      plan,
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** Re-render the preview under a changed mapping. */
+router.post('/import/:token/preview', (req, res, next) => {
+  try {
+    const staged = excel.peek(req.params.token);
+    if (!staged || staged.kind !== 'teachers') {
+      req.flash('error', 'That upload has expired. Please upload the file again.');
+      return res.redirect('/admin/teachers/import');
+    }
+
+    staged.mapping = excel.sanitiseMapping(req.body, staged.parsed.columns.length, importer.FIELD_KEYS);
+    return res.redirect(`/admin/teachers/import/${req.params.token}`);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/import/:token/commit', async (req, res, next) => {
+  try {
+    const staged = excel.peek(req.params.token);
+    if (!staged || staged.kind !== 'teachers') {
+      req.flash('error', 'That upload has expired. Please upload the file again.');
+      return res.redirect('/admin/teachers/import');
+    }
+
+    const mapping = excel.sanitiseMapping(req.body, staged.parsed.columns.length, importer.FIELD_KEYS);
+    if (!Object.values(mapping).includes('name')) {
+      req.flash('error', 'Map a column to Teacher Name before importing.');
+      staged.mapping = mapping;
+      return res.redirect(`/admin/teachers/import/${req.params.token}`);
+    }
+
+    const { stats, errors, deactivatedNames } = await importer.commitImport({
+      parsed: staged.parsed,
+      mapping,
+      options: { deactivateMissing: req.body.deactivate_missing === 'on' },
+      actor: req.session.user,
+      filename: staged.filename,
+    });
+
+    excel.discard(req.params.token);
+
+    return res.render('admin/teacher-import-result', {
+      title: 'Import Complete',
+      stats,
+      errors,
+      deactivatedNames,
+      filename: staged.filename,
+    });
   } catch (err) {
     return next(err);
   }

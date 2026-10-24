@@ -1,0 +1,133 @@
+<%
+  var columns  = staged.parsed.columns;
+  var rowCount = staged.parsed.rows.length;
+  var hasName  = Object.values(mapping).indexOf('name') !== -1;
+%>
+
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Step 2 of 3 &middot; <%= staged.filename %></div>
+    <h1>Check the column mapping</h1>
+    <p class="lede">
+      <strong><%= rowCount.toLocaleString('en-IN') %></strong> data rows found in sheet
+      "<%= staged.parsed.sheetName %>". Nothing is saved until you press Import.
+    </p>
+  </div>
+  <a class="btn btn-ghost" href="/admin/teachers/import">Start over</a>
+</div>
+
+<% if (!hasName) { %>
+  <div class="notice notice-error" role="alert">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+    </svg>
+    <div><strong>Map a column to Teacher Name.</strong> That is the only required field.</div>
+  </div>
+<% } %>
+
+<%- include('../partials/import-columns', {
+      columns: columns,
+      rows: staged.parsed.rows,
+      fields: fields,
+      mapping: mapping,
+      action: '/admin/teachers/import/' + token + '/preview',
+      note: 'Columns left as "ignore" are not imported.'
+    }) %>
+
+<div class="card card-flush mb-6">
+  <div class="card-head">
+    <h3 style="margin:0">Preview — first <%= preview.length %> rows</h3>
+    <span class="text-xs muted">This is exactly how the rows will be read.</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Name</th><th>Staff Code</th><th>Email</th><th>Phone</th><th class="mid">Will be</th></tr>
+      </thead>
+      <tbody>
+        <% preview.forEach(function (p) { %>
+          <tr<%= p.willSkip ? ' style="color:var(--ink-faint)"' : '' %>>
+            <td class="row-name"><%= p.name || '—' %></td>
+            <td class="tnum"><%= p.employee_code || '—' %></td>
+            <td><%= p.email || '—' %></td>
+            <td class="tnum"><%= p.phone || '—' %></td>
+            <td class="mid">
+              <% if (p.action === 'skip') { %>
+                <span class="badge badge-danger">skipped</span>
+              <% } else if (p.action === 'update') { %>
+                <span class="badge badge-neutral">updates <%= p.match %></span>
+              <% } else { %>
+                <span class="badge badge-accent">added</span>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="grid grid-top" style="grid-template-columns:minmax(280px,1fr) minmax(330px,1.1fr)">
+
+  <div class="card">
+    <h3>What this import will do</h3>
+    <div class="grid grid-3 mt-4">
+      <div class="stat"><div class="k">Added</div><div class="n tnum"><%= plan.add %></div></div>
+      <div class="stat"><div class="k">Updated</div><div class="n tnum"><%= plan.update %></div></div>
+      <div class="stat"><div class="k">Skipped</div><div class="n tnum"><%= plan.skip %></div></div>
+    </div>
+    <p class="hint mt-4">
+      <%= plan.existing %> <%= plan.existing === 1 ? 'teacher is' : 'teachers are' %> currently on file.
+      Matching is by staff code first, then by name.
+    </p>
+  </div>
+
+  <div class="card card-floating">
+    <h3>Import <%= rowCount.toLocaleString('en-IN') %> rows</h3>
+
+    <form method="post" action="/admin/teachers/import/<%= token %>/commit" class="mt-4"
+          onsubmit="return confirmImport(this)">
+      <% columns.forEach(function (col, i) { %>
+        <input type="hidden" name="col_<%= i %>" value="<%= mapping[i] || '' %>">
+      <% }) %>
+
+      <label class="row" style="align-items:flex-start;gap:var(--space-3);margin-bottom:var(--space-4)">
+        <input type="checkbox" name="deactivate_missing" id="deactivate" style="width:auto;margin-top:5px">
+        <span>
+          <strong>Mark teachers not in this file as inactive</strong>
+          <span class="hint" style="margin-top:2px">
+            Use when this file is your complete staff list — it clears the seeded sample names.
+            Nobody is deleted: inactive teachers leave the sign-in dropdown but keep their mark history.
+          </span>
+        </span>
+      </label>
+
+      <div class="notice notice-info" style="margin-bottom:var(--space-4)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 16v-5m0-3h.01"/>
+        </svg>
+        <div>
+          A blank cell never erases a stored value, so a file without phone numbers will not
+          wipe the ones already on record.
+        </div>
+      </div>
+
+      <button class="btn btn-primary" type="submit" style="width:100%" <%= hasName ? '' : 'disabled' %>>
+        Import <%= rowCount.toLocaleString('en-IN') %> rows
+      </button>
+    </form>
+  </div>
+
+</div>
+
+<script>
+  function confirmImport(form) {
+    var retire = document.getElementById('deactivate').checked;
+    var msg = 'Import <%= plan.add %> new and update <%= plan.update %> existing teacher(s)?';
+    if (retire) {
+      msg += '\n\nAny teacher NOT in this file will be marked inactive and will disappear '
+           + 'from the sign-in dropdown. Their mark history is kept.';
+    }
+    return confirm(msg);
+  }
+</script>

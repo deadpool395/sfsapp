@@ -27,46 +27,14 @@
   </div>
 <% } %>
 
-<form method="post" action="/admin/students/import/<%= token %>/preview" id="mapform">
-  <div class="card card-flush mb-6">
-    <div class="card-head">
-      <h3 style="margin:0">Columns found in your file</h3>
-      <button class="btn btn-ghost btn-sm" type="submit">Refresh preview</button>
-    </div>
-    <div class="table-wrap">
-      <table class="data">
-        <thead>
-          <tr><th style="width:4rem">Col</th><th style="width:16rem">Heading in your file</th>
-            <th style="width:18rem">Import as</th><th>First values</th></tr>
-        </thead>
-        <tbody>
-          <% columns.forEach(function (col, i) { %>
-            <tr>
-              <td class="mid"><strong><%= String.fromCharCode(65 + (i % 26)) %></strong></td>
-              <td><%= col || '(no heading)' %></td>
-              <td>
-                <select name="col_<%= i %>">
-                  <option value="">— ignore (kept as extra detail) —</option>
-                  <% fields.forEach(function (f) { %>
-                    <option value="<%= f.key %>" <%= mapping[i] === f.key ? 'selected' : '' %>>
-                      <%= f.label %><%= f.required ? ' *' : '' %>
-                    </option>
-                  <% }) %>
-                </select>
-              </td>
-              <td class="text-xs muted">
-                <%= staged.parsed.rows.slice(0, 3).map(function (r) { return r[i] || '—'; }).join('  ·  ') %>
-              </td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    </div>
-    <div class="card-foot text-xs muted">
-      Columns left as "ignore" are not lost — they are stored against each student as extra detail.
-    </div>
-  </div>
-</form>
+<%- include('../partials/import-columns', {
+      columns: columns,
+      rows: staged.parsed.rows,
+      fields: fields,
+      mapping: mapping,
+      action: '/admin/students/import/' + token + '/preview',
+      note: 'Columns left as &quot;ignore&quot; are not lost — they are stored against each student as extra detail.'
+    }) %>
 
 <div class="card card-flush mb-6">
   <div class="card-head">

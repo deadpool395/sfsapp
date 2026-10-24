@@ -1,0 +1,72 @@
+<div class="pagehead">
+  <div>
+    <div class="eyebrow">Teachers</div>
+    <h1>Import from Excel</h1>
+    <p class="lede">
+      Upload the staff list. You will see the detected columns and a preview before anything is saved.
+    </p>
+  </div>
+  <a class="btn btn-ghost" href="/admin/teachers">Back to teachers</a>
+</div>
+
+<div class="grid grid-top" style="grid-template-columns:minmax(320px,1.1fr) minmax(300px,1fr)">
+
+  <div class="card card-floating">
+    <h3>Choose a file</h3>
+    <form method="post" action="/admin/teachers/import" enctype="multipart/form-data" class="mt-4">
+      <label class="field">
+        <span>Excel file (.xlsx)</span>
+        <input type="file" name="file" accept=".xlsx,.xlsm" required>
+        <span class="hint">Up to 15 MB. The first worksheet is used.</span>
+      </label>
+
+      <button class="btn btn-primary" type="submit">
+        Upload &amp; preview
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6"/>
+        </svg>
+      </button>
+    </form>
+
+    <p class="hint mt-4" style="padding-top:var(--space-3);border-top:1px solid var(--hairline)">
+      Currently <strong><%= counts.active %></strong> active
+      <%= counts.active === 1 ? 'teacher' : 'teachers' %> on file<%= counts.total !== counts.active ? ` (${counts.total} including inactive)` : '' %>.
+    </p>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h3>Expected columns</h3>
+      <p class="muted text-sm" style="margin-top:var(--space-2)">
+        Any layout works — you map the columns on the next screen. Only <strong>Name</strong> is required.
+      </p>
+      <div class="table-wrap mt-2">
+        <table class="data">
+          <thead><tr><th>Name</th><th>Staff Code</th><th>Email</th><th>Phone</th></tr></thead>
+          <tbody>
+            <tr><td>Mrs. Example Teacher</td><td>T001</td><td>example@school.in</td><td>9000000001</td></tr>
+            <tr><td>Mr. Sample Name</td><td>T002</td><td>—</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint">
+        <strong>Staff Code</strong> is used to match existing staff, so re-uploading a corrected
+        file updates records instead of duplicating them. Without one, names are matched instead.
+      </p>
+      <a class="btn btn-ghost btn-sm mt-2" href="/admin/teachers/template">Download a blank template</a>
+    </div>
+
+    <div class="card">
+      <h3>Replacing the sample names</h3>
+      <p class="muted text-sm" style="margin-top:var(--space-2)">
+        On the next screen you can tick <strong>mark teachers not in this file as inactive</strong>.
+        Uploading your real staff list with that ticked clears the seeded sample names in one step.
+      </p>
+      <p class="hint">
+        Teachers are never deleted — marks already submitted reference them, so retired staff are
+        hidden from the sign-in dropdown while their mark history stays intact.
+      </p>
+    </div>
+  </div>
+
+</div>

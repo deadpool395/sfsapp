@@ -2,24 +2,15 @@
 /** Student records plus the Excel import (upload -> map -> preview -> commit). */
 
 const express = require('express');
-const multer = require('multer');
 const ExcelJS = require('exceljs');
 
 const db = require('../../db/pool');
 const importer = require('../../services/excelImport');
 const { formatClassLabel } = require('../../lib/classes');
 const { POWERED_BY } = require('../../lib/constants');
+const { spreadsheetUpload } = require('../../lib/upload');
 
 const router = express.Router();
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (/\.(xlsx|xlsm)$/i.test(file.originalname)) return cb(null, true);
-    return cb(Object.assign(new Error('Upload an .xlsx file (Excel 2007 or newer).'), { status: 400 }));
-  },
-});
 
 const PAGE_SIZE = 50;
 
@@ -333,7 +324,7 @@ router.get('/import', async (req, res, next) => {
   }
 });
 
-router.post('/import', upload.single('file'), async (req, res, next) => {
+router.post('/import', spreadsheetUpload.single('file'), async (req, res, next) => {
   try {
     const year = await resolveYear(req.body.year);
     if (!year) {

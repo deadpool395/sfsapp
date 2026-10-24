@@ -141,13 +141,16 @@ function suggestMapping(columns) {
   return mapping;
 }
 
-/** Keep only valid, non-duplicated field assignments from posted form data. */
-function sanitiseMapping(raw, columnCount) {
+/**
+ * Keep only valid, non-duplicated field assignments from posted form data.
+ * `fieldKeys` is the permitted target set, so the teacher import can share this.
+ */
+function sanitiseMapping(raw, columnCount, fieldKeys = FIELD_KEYS) {
   const mapping = {};
   const used = new Set();
   for (let i = 0; i < columnCount; i++) {
     const field = raw[`col_${i}`];
-    if (!field || !FIELD_KEYS.has(field) || used.has(field)) continue;
+    if (!field || !fieldKeys.has(field) || used.has(field)) continue;
     mapping[i] = field;
     used.add(field);
   }
@@ -477,15 +480,21 @@ async function commitImport({ yearId, parsed, mapping, options = {}, actor, file
 }
 
 module.exports = {
+  // Student-specific
   FIELDS,
-  parseWorkbook,
   suggestMapping,
-  sanitiseMapping,
   buildPreview,
   classPlan,
   commitImport,
+
+  // Entity-agnostic pipeline, shared with services/teacherImport.js
+  parseWorkbook,
+  sanitiseMapping,
   stash,
   peek,
   discard,
+  projectRow,
+  unmappedExtras,
+  normalise,
   parseDob,
 };
