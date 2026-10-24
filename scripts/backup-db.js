@@ -82,8 +82,113 @@ function which(exe) {
   return probe.status === 0 ? probe.stdout.trim() : null;
 }
 
+/**
+ * Write a point-in-time dump of DATABASE_URL to backups/ and change nothing.
+ *
+ * This is the one to run before any risky change: it needs no second database
+ * and cannot overwrite anything, unlike the mirroring mode below.
+ */
+async function snapshot(label) {
+  const dumpVersion = which('pg_dump');
+  if (!dumpVersion) throw new Error('pg_dump not found on PATH.');
+
+  const dir = path.join(__dirname, '..', 'backups');
+  fs.mkdirSync(dir, { recursive: true });
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const name = `sfsapp-${stamp}${label ? `-${label}` : ''}.sql`;
+  const file = path.join(dir, name);
+  // Write to .part and rename only once the dump is verified complete, so an
+  // interrupted run can never leave a half-file that looks like a backup.
+  const partial = `${file}.part`;
+
+  console.log(`source : ${redact(SOURCE)}`);
+  console.log(`tool   : ${dumpVersion}`);
+
+  const rows = await counts(SOURCE, 'database');
+
+  try {
+    await new Promise((resolve, reject) => {
+      const out = fs.createWriteStream(partial);
+      // --schema-only is never used: this must capture data, not just shape.
+      const dump = spawn('pg_dump', [SOURCE, '--no-owner', '--no-acl', '--quote-all-identifiers'], { shell: true });
+      const errs = [];
+      dump.stdout.pipe(out);
+      dump.stderr.on('data', (d) => errs.push(d.toString()));
+      dump.on('error', reject);
+      out.on('error', reject);
+      dump.on('close', (code) => {
+        if (code !== 0) return reject(new Error(`pg_dump exited ${code}:\n${errs.join('')}`));
+        out.end();
+      });
+      out.on('finish', resolve);
+    });
+
+    const bytes = fs.statSync(partial).size;
+    if (bytes < 1024) throw new Error(`dump is only ${bytes} bytes`);
+
+    // pg_dump writes this marker last; without it the file is truncated.
+    const tail = fs.readFileSync(partial, 'utf8').slice(-400);
+    if (!tail.includes('PostgreSQL database dump complete')) {
+      throw new Error('dump has no completion marker, so it is truncated');
+    }
+
+    fs.renameSync(partial, file);
+
+    const summary = summarise(file);
+    console.log('\n  rows captured in the dump:');
+    for (const [schema, tally] of Object.entries(summary.bySchema)) {
+      console.log(`    ${schema.padEnd(10)} ${String(tally.tables).padStart(3)} tables  ${tally.rows.toLocaleString('en-IN').padStart(9)} rows`);
+    }
+    console.log(`\nSnapshot written: ${path.relative(process.cwd(), file)}`);
+    console.log(`  ${(bytes / 1024 / 1024).toFixed(1)} MB, ${summary.total.toLocaleString('en-IN')} rows, verified complete`);
+    console.log('\nRestore with:');
+    console.log(`  psql "<target-url>" -v ON_ERROR_STOP=1 -f "${path.relative(process.cwd(), file)}"`);
+  } catch (err) {
+    if (fs.existsSync(partial)) fs.unlinkSync(partial);
+    throw new Error(`Snapshot failed and was discarded — ${err.message}`);
+  }
+}
+
+/** Count the rows actually present in a dump, grouped by schema. */
+function summarise(file) {
+  // pg_dump writes CRLF on Windows.
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  const bySchema = {};
+  let total = 0;
+  let current = null;
+  let count = 0;
+
+  for (const line of lines) {
+    if (line.startsWith('COPY ')) {
+      const m = line.match(/COPY\s+"?(\w+)"?\."?(\w+)"?/);
+      current = m ? m[1] : 'unknown';
+      count = 0;
+      continue;
+    }
+    if (current === null) continue;
+    if (line === '\\.') {
+      bySchema[current] = bySchema[current] || { tables: 0, rows: 0 };
+      bySchema[current].tables += 1;
+      bySchema[current].rows += count;
+      total += count;
+      current = null;
+    } else if (line.length) {
+      count += 1;
+    }
+  }
+  return { bySchema, total };
+}
+
 async function main() {
   if (!SOURCE) throw new Error('DATABASE_URL is not set.');
+
+  // Snapshot mode needs no target and touches nothing.
+  if (process.argv.includes('--snapshot')) {
+    const flag = process.argv.find((a) => a.startsWith('--label='));
+    return snapshot(flag ? flag.split('=')[1].replace(/[^\w-]/g, '') : '');
+  }
+
   if (!TARGET) throw new Error('BACKUP_DATABASE_URL is not set — add the remote URL to .env.');
 
   const dumpVersion = which('pg_dump');

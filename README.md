@@ -130,18 +130,43 @@ has not been assessed. `npm run report:preview -- --partial` renders that case.
 
 ### Backups
 
-`npm run db:backup` pipes `pg_dump` into the remote database named by
-`BACKUP_DATABASE_URL` (a Render external URL, for example), then compares row
-counts table by table and fails if any differ. It uses `--clean --if-exists`,
-so running it again replaces the remote contents rather than duplicating rows.
+**Take a snapshot before any change that touches data** — a migration, an
+import, a release, a restore:
 
 ```bash
-npm run db:backup            # local -> remote
-npm run db:backup -- --dry   # report only, change nothing
-npm run db:backup -- --file  # also keep the .sql dump under backups/
+npm run db:snapshot                      # -> backups/sfsapp-<timestamp>.sql
+npm run db:snapshot -- --label=pre-import
 ```
 
-Both databases must be the same PostgreSQL major version.
+It dumps whatever `DATABASE_URL` points at, needs no second database, and
+changes nothing. The dump is written to a `.part` file and only renamed once
+it is verified to carry pg_dump's completion marker, so an interrupted run
+cannot leave a truncated file masquerading as a backup. It reports the rows it
+actually captured, per schema. Restore with:
+
+```bash
+psql "<target-url>" -v ON_ERROR_STOP=1 -f backups/sfsapp-<timestamp>.sql
+```
+
+`backups/` is gitignored — dumps contain pupil and staff personal data.
+
+#### Mirroring between databases — not a backup
+
+`npm run db:backup` is a different tool: it pipes `pg_dump` straight into
+`BACKUP_DATABASE_URL`, **dropping the target's tables first** (`--clean
+--if-exists`), then compares row counts table by table and fails if any differ.
+Use it to replicate one database onto another, never to keep a copy. It refuses
+to run when both URLs resolve to the same database, and both must be the same
+PostgreSQL major version.
+
+```bash
+npm run db:backup -- --dry   # report only, change nothing
+```
+
+> **The Render database is shared.** Alongside this app's `public` schema it
+> holds a `website` schema (13 tables) belonging to the school website. A
+> snapshot therefore backs up both; anything destructive aimed at "the
+> database" can reach that other application.
 
 ## Branding
 
