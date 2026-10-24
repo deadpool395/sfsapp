@@ -91,6 +91,23 @@ async function main() {
   if (!dumpVersion) throw new Error('pg_dump not found on PATH.');
   if (!psqlVersion) throw new Error('psql not found on PATH.');
 
+  // Dumping a database onto itself would drop every table and then restore
+  // from a stream that is being read out of the tables being dropped.
+  const identity = (url) => {
+    try {
+      const u = new URL(url);
+      return `${u.hostname}:${u.port || 5432}${u.pathname}`;
+    } catch {
+      return url;
+    }
+  };
+  if (identity(SOURCE) === identity(TARGET)) {
+    throw new Error(
+      'DATABASE_URL and BACKUP_DATABASE_URL point at the same database ' +
+        `(${identity(SOURCE)}). Point BACKUP_DATABASE_URL somewhere else.`
+    );
+  }
+
   console.log(`source : ${redact(SOURCE)}`);
   console.log(`target : ${redact(TARGET)}`);
   console.log(`tools  : ${dumpVersion} / ${psqlVersion}\n`);
